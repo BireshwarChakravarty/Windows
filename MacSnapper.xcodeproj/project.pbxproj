@@ -1,0 +1,183 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+		A00100000000000000000001 /* MacSnapperApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000001; };
+		A00100000000000000000002 /* SnapperPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000002; };
+		A00100000000000000000003 /* SnapperModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000003; };
+		A00100000000000000000004 /* DisplayTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000004; };
+		A00100000000000000000005 /* WindowService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000005; };
+		A00100000000000000000006 /* Arrangement.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000006; };
+		A00100000000000000000007 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000007; };
+
+		A00200000000000000000001 /* MacSnapperApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSnapperApp.swift; sourceTree = "<group>"; };
+		A00200000000000000000002 /* SnapperPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapperPanel.swift; sourceTree = "<group>"; };
+		A00200000000000000000003 /* SnapperModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapperModel.swift; sourceTree = "<group>"; };
+		A00200000000000000000004 /* DisplayTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayTarget.swift; sourceTree = "<group>"; };
+		A00200000000000000000005 /* WindowService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowService.swift; sourceTree = "<group>"; };
+		A00200000000000000000006 /* Arrangement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Arrangement.swift; sourceTree = "<group>"; };
+		A00200000000000000000007 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A00200000000000000000008 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A00200000000000000000009 /* MacSnapper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacSnapper.app; sourceTree = BUILT_PRODUCTS_DIR; };
+
+		A00300000000000000000001 /* Main group */ = {
+			isa = PBXGroup;
+			children = (A00300000000000000000002, A00300000000000000000004);
+			sourceTree = "<group>";
+		};
+		A00300000000000000000002 /* MacSnapper */ = {
+			isa = PBXGroup;
+			children = (
+				A00200000000000000000001,
+				A00200000000000000000002,
+				A00200000000000000000003,
+				A00200000000000000000004,
+				A00200000000000000000005,
+				A00300000000000000000003,
+				A00200000000000000000007,
+				A00200000000000000000008,
+			);
+			path = MacSnapper;
+			sourceTree = "<group>";
+		};
+		A00300000000000000000003 /* Core */ = {
+			isa = PBXGroup;
+			children = (A00200000000000000000006);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		A00300000000000000000004 /* Products */ = {
+			isa = PBXGroup;
+			children = (A00200000000000000000009);
+			name = Products;
+			sourceTree = "<group>";
+		};
+
+		A00400000000000000000001 /* MacSnapper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00800000000000000000002;
+			buildPhases = (A00500000000000000000001, A00500000000000000000002, A00500000000000000000003);
+			buildRules = ();
+			dependencies = ();
+			name = MacSnapper;
+			productName = MacSnapper;
+			productReference = A00200000000000000000009;
+			productType = "com.apple.product-type.application";
+		};
+
+		A00500000000000000000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A00100000000000000000001,
+				A00100000000000000000002,
+				A00100000000000000000003,
+				A00100000000000000000004,
+				A00100000000000000000005,
+				A00100000000000000000006,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A00500000000000000000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A00500000000000000000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (A00100000000000000000007);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+
+		A00600000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = { LastSwiftUpdateCheck = 2600; LastUpgradeCheck = 2600; };
+			buildConfigurationList = A00800000000000000000001;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base);
+			mainGroup = A00300000000000000000001;
+			productRefGroup = A00300000000000000000004;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (A00400000000000000000001);
+		};
+
+		A00700000000000000000001 /* Project Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A00700000000000000000002 /* Project Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		A00700000000000000000003 /* Target Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = MacSnapper/Info.plist;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bireshwarchakravarty.MacSnapper;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		A00700000000000000000004 /* Target Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_HARDENED_RUNTIME = YES;
+				INFOPLIST_FILE = MacSnapper/Info.plist;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bireshwarchakravarty.MacSnapper;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+
+		A00800000000000000000001 /* Project configuration list */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (A00700000000000000000001, A00700000000000000000002);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A00800000000000000000002 /* Target configuration list */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (A00700000000000000000003, A00700000000000000000004);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+	};
+	rootObject = A00600000000000000000001;
+}

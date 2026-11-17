@@ -3,7 +3,7 @@ import Testing
 #if canImport(CoreGraphics)
 import CoreGraphics
 #endif
-@testable import MacSnapperCore
+@testable import WindowsCore
 
 @Test func fourColumnsUseTheUltrawideWorkArea() {
     let area = CGRect(x: -5120, y: 24, width: 5120, height: 1416)
@@ -74,7 +74,7 @@ import CoreGraphics
 }
 
 @Test func savedArrangementRoundTrips() throws {
-    let window = makeWindow(app: "Xcode", title: "MacSnapper")
+    let window = makeWindow(app: "Xcode", title: "Windows")
     let entry = SavedArrangement(name: "Studio", arrangement: Arrangement(layout: .grid, slots: [2: window.reference]))
     let encoded = try JSONEncoder().encode(entry)
     #expect(try JSONDecoder().decode(SavedArrangement.self, from: encoded) == entry)

@@ -1,4 +1,4 @@
-name: Build MacSnapper
+name: Build Windows for macOS
 
 on:
   push:
@@ -20,9 +20,9 @@ jobs:
         run: swift test
       - name: Build and package the universal app
         run: ./Scripts/build-app.sh
-      - name: Upload MacSnapper
+      - name: Upload Windows.app
         uses: actions/upload-artifact@v7
         with:
-          path: dist/MacSnapper-macOS26.zip
+          path: dist/Windows-macOS26.zip
           archive: false
           if-no-files-found: error

@@ -31,7 +31,7 @@ final class SnapperModel {
         }
     }
 
-    private static let storageKey = "MacSnapper.preferences.v1"
+    private static let storageKey = "Windows.preferences.v1"
     private(set) var displays: [DisplayTarget] = []
     private(set) var windows: [WindowChoice] = []
     private(set) var trusted = AXIsProcessTrusted()

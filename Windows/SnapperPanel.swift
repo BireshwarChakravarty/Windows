@@ -3,11 +3,14 @@ import Combine
 import CoreGraphics
 import SwiftUI
 
-private let accent = Color(red: 0.50, green: 0.93, blue: 0.80)
-private let secondaryInk = Color(red: 0.67, green: 0.73, blue: 0.83)
-private let zoneColors: [Color] = [accent, Color(red: 0.51, green: 0.75, blue: 1),
+private let mint = Color(red: 0.50, green: 0.93, blue: 0.80)
+private let zoneColors: [Color] = [mint, Color(red: 0.51, green: 0.75, blue: 1),
                                    Color(red: 0.77, green: 0.67, blue: 1),
                                    Color(red: 1, green: 0.77, blue: 0.53)]
+private let lightZoneInks: [Color] = [Color(red: 0.05, green: 0.36, blue: 0.30),
+                                      Color(red: 0.11, green: 0.31, blue: 0.56),
+                                      Color(red: 0.38, green: 0.23, blue: 0.58),
+                                      Color(red: 0.53, green: 0.29, blue: 0.07)]
 
 struct SnapperPanel: View {
     private enum Tab: String, CaseIterable { case arrange = "Arrange", saved = "Saved" }
@@ -17,6 +20,11 @@ struct SnapperPanel: View {
     @State private var naming = false
     @State private var name = ""
     @FocusState private var nameFocused: Bool
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var slotInks: [Color] { colorScheme == .dark ? zoneColors : lightZoneInks }
+    private var accent: Color { slotInks[0] }
+    private var secondaryInk: Color { .secondary }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -36,15 +44,7 @@ struct SnapperPanel: View {
         }
         .padding(18)
         .frame(width: 432)
-        .background {
-            ZStack(alignment: .topLeading) {
-                Color(red: 0.049, green: 0.065, blue: 0.102)
-                RadialGradient(colors: [Color(red: 0.12, green: 0.25, blue: 0.27).opacity(0.54), .clear],
-                               center: .topLeading, startRadius: 12, endRadius: 360)
-            }
-            .ignoresSafeArea()
-        }
-        .environment(\.colorScheme, .dark)
+        .tint(accent)
         .onAppear { model.refresh() }
         .onReceive(Timer.publish(every: 1.5, on: .main, in: .common).autoconnect()) { _ in model.checkAccess() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)) { _ in
@@ -67,7 +67,7 @@ struct SnapperPanel: View {
                 .overlay { RoundedRectangle(cornerRadius: 13).strokeBorder(accent.opacity(0.24)) }
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                Text("MacSnapper")
+                Text("Windows")
                     .font(.system(size: 22, weight: .semibold, design: .rounded))
                     .tracking(-0.5)
                     .accessibilityAddTraits(.isHeader)
@@ -112,7 +112,7 @@ struct SnapperPanel: View {
             .foregroundStyle(model.display == nil ? secondaryInk : accent)
             .padding(.horizontal, 9)
             .padding(.vertical, 7)
-            .background(.white.opacity(0.06), in: .capsule)
+            .glassEffect(.regular.interactive(), in: .capsule)
             .contentShape(.capsule)
         }
         .menuStyle(.borderlessButton)
@@ -123,36 +123,15 @@ struct SnapperPanel: View {
     }
 
     private var tabs: some View {
-        HStack(spacing: 4) {
+        Picker("Panel", selection: $tab) {
             ForEach(Tab.allCases, id: \.self) { item in
-                Button {
-                    tab = item
-                    naming = false
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: item == .arrange ? "rectangle.split.2x2" : "bookmark")
-                        Text(item.rawValue)
-                        if item == .saved, !model.saved.isEmpty {
-                            Text(model.saved.count, format: .number)
-                                .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 2)
-                                .background(.white.opacity(0.08), in: .capsule)
-                        }
-                    }
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(tab == item ? .white : secondaryInk)
-                    .frame(maxWidth: .infinity, minHeight: 30)
-                    .background(tab == item ? .white.opacity(0.10) : .clear, in: .rect(cornerRadius: 8))
-                    .contentShape(.rect)
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(tab == item ? .isSelected : [])
+                Text(item.rawValue).tag(item)
             }
         }
-        .padding(4)
-        .background(.black.opacity(0.30), in: .rect(cornerRadius: 12))
-        .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(.white.opacity(0.07)) }
+        .labelsHidden()
+        .pickerStyle(.segmented)
+        .controlSize(.large)
+        .onChange(of: tab) { naming = false }
     }
 
     private var arrangementPanel: some View {
@@ -163,9 +142,9 @@ struct SnapperPanel: View {
                 callout("display", title: model.displayWasSelected ? "External display disconnected" : "Choose your external display",
                         detail: "Connect your monitor in extended mode to arrange windows on it.")
             } else if !model.trusted {
-                callout("lock.shield", title: "Allow window control", detail: "Enable MacSnapper in Accessibility so it can move and resize windows.") {
+                callout("lock.shield", title: "Allow window control", detail: "Enable Windows in Accessibility so it can move and resize windows.") {
                     Button("Open Accessibility Settings", action: model.openAccessibility)
-                        .buttonStyle(PanelButtonStyle(prominent: true))
+                        .buttonStyle(.glassProminent)
                 }
             } else {
                 layoutPicker
@@ -182,11 +161,12 @@ struct SnapperPanel: View {
             HStack(alignment: .center) {
                 Label(model.display?.name ?? "Ultrawide display", systemImage: "display")
                     .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white)
                     .lineLimit(1)
                 Spacer(minLength: 6)
                 Text(model.display?.resolution ?? "5120 × 1440")
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundStyle(secondaryInk)
+                    .foregroundStyle(Color.white.opacity(0.74))
             }
 
             VStack(spacing: 0) {
@@ -228,8 +208,8 @@ struct SnapperPanel: View {
                     }
                     .foregroundStyle(selected ? accent : secondaryInk)
                     .frame(maxWidth: .infinity, minHeight: 33)
-                    .background(selected ? accent.opacity(0.10) : .white.opacity(0.045), in: .rect(cornerRadius: 8))
-                    .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(selected ? accent.opacity(0.32) : .white.opacity(0.08)) }
+                    .background(selected ? accent.opacity(0.10) : Color.primary.opacity(0.045), in: .rect(cornerRadius: 8))
+                    .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(selected ? accent.opacity(0.32) : Color.primary.opacity(0.08)) }
                     .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
@@ -311,12 +291,12 @@ struct SnapperPanel: View {
             HStack(spacing: 8) {
                 Text("\(slot + 1)")
                     .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(zoneColors[slot])
+                    .foregroundStyle(slotInks[slot])
                     .frame(width: 20, height: 20)
-                    .background(zoneColors[slot].opacity(0.12), in: .rect(cornerRadius: 5))
+                    .background(slotInks[slot].opacity(0.12), in: .rect(cornerRadius: 5))
                 Text(label)
                     .lineLimit(1)
-                    .foregroundStyle(reference == nil ? secondaryInk : .white)
+                    .foregroundStyle(reference == nil ? secondaryInk : .primary)
                 Spacer(minLength: 2)
                 if let reference {
                     Text(live == nil ? "Missing" : reference.appName)
@@ -324,7 +304,7 @@ struct SnapperPanel: View {
                         .lineLimit(1)
                         .frame(maxWidth: 102, alignment: .trailing)
                         .fixedSize(horizontal: true, vertical: false)
-                        .foregroundStyle(live == nil ? zoneColors[3] : secondaryInk)
+                        .foregroundStyle(live == nil ? slotInks[3] : secondaryInk)
                 }
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.system(size: 8, weight: .medium))
@@ -333,7 +313,7 @@ struct SnapperPanel: View {
             .font(.system(size: 11, weight: .medium))
             .padding(.horizontal, 7)
             .frame(height: 29)
-            .background(.white.opacity(0.045), in: .rect(cornerRadius: 7))
+            .background(Color.primary.opacity(0.045), in: .rect(cornerRadius: 7))
             .contentShape(.rect)
         }
         .menuStyle(.borderlessButton)
@@ -351,7 +331,7 @@ struct SnapperPanel: View {
             } label: {
                 Label(naming ? "Cancel" : "Save layout", systemImage: naming ? "xmark" : "bookmark")
             }
-            .buttonStyle(PanelButtonStyle())
+            .buttonStyle(.glass)
             .disabled(model.arrangement.slots.isEmpty || model.busy)
 
             Button(action: model.snap) {
@@ -366,9 +346,10 @@ struct SnapperPanel: View {
                 }
                 .frame(maxWidth: .infinity)
             }
-            .buttonStyle(PanelButtonStyle(prominent: true))
+            .buttonStyle(.glassProminent)
             .disabled(!model.canSnap)
         }
+        .controlSize(.large)
     }
 
     private var saveForm: some View {
@@ -378,7 +359,7 @@ struct SnapperPanel: View {
                 .focused($nameFocused)
                 .onSubmit(save)
             Button(model.hasSavedLayout(named: name) ? "Update" : "Save", action: save)
-                .buttonStyle(PanelButtonStyle(prominent: true))
+                .buttonStyle(.glassProminent)
                 .disabled(!canSaveName)
         }
     }
@@ -404,7 +385,7 @@ struct SnapperPanel: View {
             if model.saved.isEmpty {
                 callout("bookmark", title: "No saved layouts yet", detail: "Assign windows in Arrange and save the layout to bring it back later.") {
                     Button("Arrange windows") { tab = .arrange }
-                        .buttonStyle(PanelButtonStyle(prominent: true))
+                        .buttonStyle(.glassProminent)
                 }
             } else {
                 if model.display == nil || !model.trusted {
@@ -435,7 +416,7 @@ struct SnapperPanel: View {
                     ZoneMap(layout: entry.arrangement.layout, filled: Set(entry.arrangement.slots.keys))
                         .padding(3)
                         .frame(width: 44, height: 25)
-                        .background(.black.opacity(0.4), in: .rect(cornerRadius: 5))
+                        .background(Color(red: 0.09, green: 0.13, blue: 0.19), in: .rect(cornerRadius: 5))
                         .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: 2) {
@@ -474,7 +455,7 @@ struct SnapperPanel: View {
             .disabled(model.busy)
         }
         .padding(.horizontal, 7)
-        .background(.white.opacity(0.055), in: .rect(cornerRadius: 8))
+        .background(Color.primary.opacity(0.055), in: .rect(cornerRadius: 8))
     }
 
     private func callout(_ icon: String, title: String, detail: String) -> some View {
@@ -500,13 +481,13 @@ struct SnapperPanel: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.white.opacity(0.055), in: .rect(cornerRadius: 9))
+        .background(Color.primary.opacity(0.055), in: .rect(cornerRadius: 9))
     }
 
     private func resultLine(_ message: SnapperModel.Message) -> some View {
         Label(message.text, systemImage: message.success ? "checkmark.circle.fill" : "info.circle")
             .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(message.success ? accent : zoneColors[3])
+            .foregroundStyle(message.success ? accent : slotInks[3])
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -516,7 +497,7 @@ struct SnapperPanel: View {
             Label("External display only", systemImage: "display")
                 .foregroundStyle(secondaryInk)
             Spacer()
-            Button("Quit MacSnapper") { NSApplication.shared.terminate(nil) }
+            Button("Quit Windows") { NSApplication.shared.terminate(nil) }
                 .buttonStyle(.plain)
                 .foregroundStyle(secondaryInk)
         }
@@ -532,44 +513,34 @@ private struct ZoneMap: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let gutter: CGFloat = numbered ? 4 : 1.5
-            let corner: CGFloat = numbered ? 5 : 1.2
-            ForEach(Array(layout.zones.enumerated()), id: \.offset) { index, zone in
-                let color = monochrome ?? zoneColors[index]
-                let tile = RoundedRectangle(cornerRadius: corner)
-                let isFilled = filled.contains(index)
-                tile.fill(color.opacity(isFilled ? 0.29 : 0.12))
-                    .overlay { tile.strokeBorder(color.opacity(isFilled ? 0.83 : 0.40), lineWidth: numbered ? 1 : 0.7) }
-                    .overlay(alignment: .topLeading) {
-                        if numbered {
-                            Text("\(index + 1)")
-                                .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                                .foregroundStyle(color)
-                                .padding(7)
-                        }
-                    }
-                    .frame(width: max(0, proxy.size.width * zone.width - gutter),
-                           height: max(0, proxy.size.height * zone.height - gutter))
-                    .position(x: proxy.size.width * zone.midX, y: proxy.size.height * zone.midY)
+            let zones = layout.zones
+            ForEach(zones.indices, id: \.self) { index in
+                tile(index, zone: zones[index], size: proxy.size)
             }
         }
     }
-}
 
-private struct PanelButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var enabled
-    var prominent = false
+    private func tile(_ index: Int, zone: CGRect, size: CGSize) -> some View {
+        let color = monochrome ?? zoneColors[index]
+        let isFilled = filled.contains(index)
+        let gutter: CGFloat = numbered ? 4 : 1.5
+        let lineWidth: CGFloat = numbered ? 1 : 0.7
+        let shape = RoundedRectangle(cornerRadius: numbered ? 5 : 1.2)
+        let fill = shape.fill(color.opacity(isFilled ? 0.29 : 0.12))
+        let outline = shape.strokeBorder(color.opacity(isFilled ? 0.83 : 0.40), lineWidth: lineWidth)
+        let width = max(0, size.width * zone.width - gutter)
+        let height = max(0, size.height * zone.height - gutter)
 
-    func makeBody(configuration: Configuration) -> some View {
-        let background = prominent ? accent : .white.opacity(0.065)
-        configuration.label
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(prominent ? Color(red: 0.04, green: 0.16, blue: 0.14) : .white)
-            .padding(.horizontal, 11)
-            .frame(minHeight: 33)
-            .background(background.opacity(configuration.isPressed ? 0.76 : 1), in: .rect(cornerRadius: 8))
-            .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(.white.opacity(prominent ? 0.15 : 0.09)) }
-            .opacity(enabled ? 1 : 0.38)
-            .contentShape(.rect)
+        return fill.overlay(outline)
+            .overlay(alignment: .topLeading) {
+                if numbered {
+                    Text("\(index + 1)")
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(color)
+                        .padding(7)
+                }
+            }
+            .frame(width: width, height: height)
+            .position(x: size.width * zone.midX, y: size.height * zone.midY)
     }
 }

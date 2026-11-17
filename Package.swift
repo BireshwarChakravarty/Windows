@@ -2,10 +2,10 @@
 import PackageDescription
 
 let package = Package(
-    name: "MacSnapperCore",
+    name: "WindowsCore",
     platforms: [.macOS(.v26)],
     targets: [
-        .target(name: "MacSnapperCore", path: "MacSnapper/Core"),
-        .testTarget(name: "MacSnapperCoreTests", dependencies: ["MacSnapperCore"]),
+        .target(name: "WindowsCore", path: "Windows/Core"),
+        .testTarget(name: "WindowsCoreTests", dependencies: ["WindowsCore"]),
     ]
 )

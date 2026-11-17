@@ -21,7 +21,7 @@ xcodebuild \
 app="$repo_dir/dist/Windows.app"
 archive="$repo_dir/dist/Windows-macOS26.zip"
 codesign --verify --strict "$app"
-lipo -verify_arch arm64 x86_64 "$app/Contents/MacOS/Windows"
+lipo "$app/Contents/MacOS/Windows" -verify_arch arm64 x86_64
 ditto -c -k --keepParent "$app" "$archive"
 
 printf '\nBuilt %s\nPackaged %s\n' "$app" "$archive"

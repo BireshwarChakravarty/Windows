@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(CoreGraphics)
+import CoreGraphics
+#endif
 
 enum Layout: String, CaseIterable, Codable, Identifiable, Sendable {
     case columns, grid, focus

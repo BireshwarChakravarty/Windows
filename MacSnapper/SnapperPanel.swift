@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import CoreGraphics
 import SwiftUI
 
 private let accent = Color(red: 0.50, green: 0.93, blue: 0.80)

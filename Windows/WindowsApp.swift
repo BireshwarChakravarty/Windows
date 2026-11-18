@@ -6,6 +6,10 @@ import SwiftUI
 struct WindowsApp: App {
     @State private var model = SnapperModel()
 
+    init() {
+        PreviewRenderer.renderIfRequested()
+    }
+
     var body: some Scene {
         MenuBarExtra {
             SnapperPanel(model: model)

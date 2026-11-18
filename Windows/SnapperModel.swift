@@ -23,6 +23,7 @@ final class SnapperModel {
     @ObservationIgnored private let service = WindowService()
     @ObservationIgnored private var refreshQueued = false
     @ObservationIgnored private var requestedAccess = false
+    @ObservationIgnored private var isPreview = false
     private var undoFrames: [UUID: CGRect] = [:]
     private var preferences: Preferences {
         didSet {
@@ -68,7 +69,7 @@ final class SnapperModel {
     func undo() { run(.undo) }
 
     func checkAccess() {
-        if AXIsProcessTrusted() != trusted { refresh() }
+        if !isPreview, AXIsProcessTrusted() != trusted { refresh() }
     }
 
     func openAccessibility() {
@@ -168,6 +169,7 @@ final class SnapperModel {
     }
 
     private func run(_ operation: Operation) {
+        guard !isPreview else { return }
         syncContext()
         if busy {
             if operation == .refresh { refreshQueued = true }
@@ -226,6 +228,26 @@ final class SnapperModel {
                     : Message(text: "Moved \(restored) of \(frames.count) windows back. Others were closed or moved.")
             }
         }
+    }
+
+    /// A model with fixed example state for rendering previews. It never scans or moves windows.
+    static func preview(layout: Layout, windows references: [WindowReference], saved: [SavedArrangement] = [],
+                        message: Message? = nil, canUndo: Bool = false) -> SnapperModel {
+        let suite = "Windows.preview"
+        let defaults = UserDefaults(suiteName: suite) ?? .standard
+        defaults.removePersistentDomain(forName: suite)
+        let model = SnapperModel(defaults: defaults)
+        model.isPreview = true
+        model.trusted = true
+        model.displays = [DisplayTarget(id: 0, key: "preview", name: "Ultrawide display", pixelsWide: 5120,
+                                        pixelsHigh: 1440, bounds: .zero, workArea: .zero)]
+        model.windows = references.map(WindowChoice.init(reference:))
+        var draft = Arrangement(layout: layout)
+        for (slot, reference) in references.prefix(layout.slotCount).enumerated() { draft.slots[slot] = reference }
+        model.preferences = Preferences(displayKey: "preview", draft: draft, saved: saved)
+        model.message = message
+        if canUndo { model.undoFrames = [UUID(): .zero] }
+        return model
     }
 
     private func showResult(_ result: SnapResult, expected: Int) {

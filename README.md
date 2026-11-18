@@ -6,14 +6,14 @@ Windows is a native macOS 26+ menu bar utility for tiling up to four windows acr
 
 ## Build and run
 
-Open a built `Windows.app` on macOS 26 or later. To build from source on a Mac, open `Windows.xcodeproj` in Xcode 26 or later and run the Windows scheme. The script builds a universal application for Apple silicon and supported Intel Macs and packages it as `dist/Windows-macOS26.zip`.
+Download `Windows-macOS26.dmg` from the latest [release](https://github.com/BireshwarChakravarty/Windows/releases/latest), open it, and drag Windows to Applications. It runs on macOS 26 or later. To build from source on a Mac, open `Windows.xcodeproj` in Xcode 26 or later and run the Windows scheme. The script builds a universal application for Apple silicon and supported Intel Macs and packages it as `dist/Windows-macOS26.dmg` and `dist/Windows-macOS26.zip`.
 
 ```sh
 ./Scripts/build-app.sh
 open dist/Windows.app
 ```
 
-Download the same ZIP from a successful **Build Windows for macOS** run in the repository’s **Actions** tab. The build uses an ad hoc signature for local testing. Apple notarization requires a Developer ID certificate.
+Each **Build Windows for macOS** run in the repository’s **Actions** tab also uploads the disk image, the ZIP and renders of the real panel with example data. Pushing a `v*` tag publishes the disk image and ZIP as a GitHub release. The build uses an ad hoc signature for local testing. Apple notarization requires a Developer ID certificate.
 
 ## Arrange windows
 

@@ -3,6 +3,7 @@ name: Build Windows for macOS
 on:
   push:
     branches: [main, "claude/**"]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -12,7 +13,10 @@ permissions:
 jobs:
   build:
     runs-on: macos-26
-    timeout-minutes: 15
+    timeout-minutes: 20
+    permissions:
+      # Needed only to publish a release when a version tag is pushed.
+      contents: write
     steps:
       - uses: actions/checkout@v6
         with:
@@ -21,9 +25,34 @@ jobs:
         run: swift test
       - name: Build and package the universal app
         run: ./Scripts/build-app.sh
+      - name: Render the panel with example data
+        continue-on-error: true
+        run: |
+          perl -e 'alarm shift; exec @ARGV' 120 dist/Windows.app/Contents/MacOS/Windows --render-previews "$RUNNER_TEMP/renders"
+          ls -l "$RUNNER_TEMP/renders"
+      - name: Upload panel renders
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: panel-renders
+          path: ${{ runner.temp }}/renders
+          if-no-files-found: warn
       - name: Upload Windows.app
         uses: actions/upload-artifact@v7
         with:
           path: dist/Windows-macOS26.zip
           archive: false
           if-no-files-found: error
+      - name: Upload disk image
+        uses: actions/upload-artifact@v7
+        with:
+          path: dist/Windows-macOS26.dmg
+          archive: false
+          if-no-files-found: error
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/Windows-macOS26.dmg dist/Windows-macOS26.zip \
+            --repo "$GITHUB_REPOSITORY" --title "Windows ${GITHUB_REF_NAME#v}" --notes-file .github/release-notes.md

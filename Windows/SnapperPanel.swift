@@ -17,12 +17,17 @@ struct SnapperPanel: View {
     private enum Tab: String, CaseIterable { case arrange = "Arrange", saved = "Saved" }
 
     let model: SnapperModel
-    @State private var tab: Tab = .arrange
+    @State private var tab: Tab
     @State private var naming = false
     @State private var name = ""
     @FocusState private var nameFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.appearsActive) private var appearsActive
+
+    init(model: SnapperModel, showingSaved: Bool = false) {
+        self.model = model
+        _tab = State(initialValue: showingSaved ? .saved : .arrange)
+    }
 
     private var slotInks: [Color] { colorScheme == .dark ? zoneColors : lightZoneInks }
     private var accent: Color { slotInks[0] }

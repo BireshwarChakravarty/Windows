@@ -42,7 +42,7 @@ open dist/Windows.app
 swift test               # layout geometry, window matching and saved layouts (Swift 6.2+, also runs on Linux)
 ```
 
-Every **Build Windows for macOS** run in the **Actions** tab tests the layout logic, builds the app, and uploads the disk image, the ZIP and renders of the real panel with example data (`Windows --render-previews <directory>`). Pushing a `v*` tag also publishes the disk image and ZIP as a GitHub release with [these notes](.github/release-notes.md). Notarization would need a Developer ID certificate.
+Every **Build Windows for macOS** run in the **Actions** tab tests the layout logic, builds the app, and uploads the disk image, the ZIP and renders of the real panel with example data (`Windows --render-previews <directory>`). Pushing a `v*` tag, or running the workflow by hand with a version such as `v1.1.0`, also publishes the disk image and ZIP as a GitHub release with [these notes](.github/release-notes.md). Notarization would need a Developer ID certificate.
 
 | Path | Contents |
 | --- | --- |

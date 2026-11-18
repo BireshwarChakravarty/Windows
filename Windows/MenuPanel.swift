@@ -31,6 +31,8 @@ struct MenuPanel: View {
     private var slotInks: [Color] { colorScheme == .dark ? zoneColors : lightZoneInks }
     private var accent: Color { slotInks[0] }
     private var secondaryInk: Color { .secondary }
+    private var primaryButton: PillButtonStyle { PillButtonStyle(prominent: true, accent: accent, dark: colorScheme == .dark) }
+    private var secondaryButton: PillButtonStyle { PillButtonStyle(prominent: false, accent: accent, dark: colorScheme == .dark) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -122,6 +124,8 @@ struct MenuPanel: View {
             .foregroundStyle(model.display == nil ? secondaryInk : accent)
             .padding(.horizontal, 9)
             .padding(.vertical, 7)
+            .background(accent.opacity(0.10), in: .capsule)
+            .overlay { Capsule().strokeBorder(accent.opacity(0.28)) }
             .glassEffect(.regular.interactive(), in: .capsule)
             .contentShape(.capsule)
         }
@@ -155,7 +159,7 @@ struct MenuPanel: View {
             } else if !model.trusted {
                 callout("lock.shield", title: "Allow window control", detail: "Enable Windows in Accessibility so it can move and resize windows.") {
                     Button("Open Accessibility Settings", action: model.openAccessibility)
-                        .buttonStyle(.glassProminent)
+                        .buttonStyle(primaryButton)
                 }
             } else {
                 layoutPicker
@@ -360,7 +364,7 @@ struct MenuPanel: View {
             } label: {
                 Label(naming ? "Cancel" : "Save layout", systemImage: naming ? "xmark" : "bookmark")
             }
-            .buttonStyle(.glass)
+            .buttonStyle(secondaryButton)
             .disabled(model.assignedCount == 0 || model.busy)
 
             Button(action: model.snap) {
@@ -375,7 +379,7 @@ struct MenuPanel: View {
                 }
                 .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.glassProminent)
+            .buttonStyle(primaryButton)
             .disabled(!model.canSnap)
             .keyboardShortcut(naming ? nil : KeyboardShortcut.defaultAction)
             .help("Snap the assigned windows into place (Return)")
@@ -414,7 +418,7 @@ struct MenuPanel: View {
                 .focused($nameFocused)
                 .onSubmit(save)
             Button(model.hasSavedLayout(named: name) ? "Update" : "Save", action: save)
-                .buttonStyle(.glassProminent)
+                .buttonStyle(PillButtonStyle(prominent: true, accent: accent, dark: colorScheme == .dark, height: 26))
                 .disabled(!canSaveName)
         }
     }
@@ -440,7 +444,7 @@ struct MenuPanel: View {
             if model.saved.isEmpty {
                 callout("bookmark", title: "No saved layouts yet", detail: "Assign windows in Arrange and save the layout to bring it back later.") {
                     Button("Arrange windows") { tab = .arrange }
-                        .buttonStyle(.glassProminent)
+                        .buttonStyle(primaryButton)
                 }
             } else {
                 if model.display == nil || !model.trusted {
@@ -571,6 +575,37 @@ struct MenuPanel: View {
                 .foregroundStyle(secondaryInk)
         }
         .font(.system(size: 10, weight: .medium))
+    }
+}
+
+/// Capsule buttons with solid fills, so the main actions read clearly in both appearances.
+private struct PillButtonStyle: ButtonStyle {
+    let prominent: Bool
+    let accent: Color
+    let dark: Bool
+    var height: CGFloat = 34
+    @Environment(\.isEnabled) var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        let ink = prominent ? (dark ? Color(red: 0.03, green: 0.20, blue: 0.16) : .white) : Color.primary
+        let fill = prominent
+            ? AnyShapeStyle(LinearGradient(colors: [accent.mix(with: .white, by: dark ? 0.18 : 0.08), accent],
+                                           startPoint: .top, endPoint: .bottom))
+            : AnyShapeStyle(dark ? Color.white.opacity(0.09) : Color.white.opacity(0.85))
+        let border = prominent ? Color.white.opacity(dark ? 0.35 : 0.18) : Color.primary.opacity(dark ? 0.16 : 0.10)
+
+        return configuration.label
+            .font(.system(size: height < 30 ? 12 : 13, weight: .semibold))
+            .foregroundStyle(ink)
+            .padding(.horizontal, height < 30 ? 12 : 15)
+            .frame(height: height)
+            .background(fill, in: .capsule)
+            .overlay { Capsule().strokeBorder(border, lineWidth: 1) }
+            .shadow(color: .black.opacity(prominent && isEnabled ? (dark ? 0.30 : 0.16) : 0), radius: 4, y: 2)
+            .brightness(configuration.isPressed ? (dark ? 0.08 : -0.06) : 0)
+            .opacity(isEnabled ? 1 : 0.42)
+            .contentShape(.capsule)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 

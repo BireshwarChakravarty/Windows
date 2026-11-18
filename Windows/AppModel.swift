@@ -1,11 +1,10 @@
 import AppKit
 @preconcurrency import ApplicationServices
-import Foundation
 import Observation
 
 @MainActor
 @Observable
-final class SnapperModel {
+final class AppModel {
     struct Message: Equatable {
         let text: String
         var success = false
@@ -232,11 +231,11 @@ final class SnapperModel {
 
     /// A model with fixed example state for rendering previews. It never scans or moves windows.
     static func preview(layout: Layout, windows references: [WindowReference], saved: [SavedArrangement] = [],
-                        message: Message? = nil, canUndo: Bool = false) -> SnapperModel {
+                        message: Message? = nil, canUndo: Bool = false) -> AppModel {
         let suite = "Windows.preview"
         let defaults = UserDefaults(suiteName: suite) ?? .standard
         defaults.removePersistentDomain(forName: suite)
-        let model = SnapperModel(defaults: defaults)
+        let model = AppModel(defaults: defaults)
         model.isPreview = true
         model.trusted = true
         model.displays = [DisplayTarget(id: 0, key: "preview", name: "Ultrawide display", pixelsWide: 5120,

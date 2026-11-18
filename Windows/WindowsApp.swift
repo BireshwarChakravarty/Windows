@@ -4,7 +4,7 @@ import SwiftUI
 @main
 @MainActor
 struct WindowsApp: App {
-    @State private var model = SnapperModel()
+    @State private var model = AppModel()
 
     init() {
         PreviewRenderer.renderIfRequested()
@@ -12,7 +12,7 @@ struct WindowsApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            SnapperPanel(model: model)
+            MenuPanel(model: model)
         } label: {
             Image(nsImage: MenuMark.image)
                 .accessibilityLabel("Windows")

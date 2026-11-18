@@ -1,6 +1,5 @@
 import AppKit
 import Combine
-import CoreGraphics
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -13,10 +12,10 @@ private let lightZoneInks: [Color] = [Color(red: 0.05, green: 0.36, blue: 0.30),
                                       Color(red: 0.38, green: 0.23, blue: 0.58),
                                       Color(red: 0.53, green: 0.29, blue: 0.07)]
 
-struct SnapperPanel: View {
+struct MenuPanel: View {
     private enum Tab: String, CaseIterable { case arrange = "Arrange", saved = "Saved" }
 
-    let model: SnapperModel
+    let model: AppModel
     @State private var tab: Tab
     @State private var naming = false
     @State private var name = ""
@@ -24,7 +23,7 @@ struct SnapperPanel: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.appearsActive) private var appearsActive
 
-    init(model: SnapperModel, showingSaved: Bool = false) {
+    init(model: AppModel, showingSaved: Bool = false) {
         self.model = model
         _tab = State(initialValue: showingSaved ? .saved : .arrange)
     }
@@ -554,7 +553,7 @@ struct SnapperPanel: View {
         .background(Color.primary.opacity(0.055), in: .rect(cornerRadius: 9))
     }
 
-    private func resultLine(_ message: SnapperModel.Message) -> some View {
+    private func resultLine(_ message: AppModel.Message) -> some View {
         Label(message.text, systemImage: message.success ? "checkmark.circle.fill" : "info.circle")
             .font(.system(size: 11, weight: .medium))
             .foregroundStyle(message.success ? accent : slotInks[3])

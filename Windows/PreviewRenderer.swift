@@ -32,7 +32,7 @@ enum PreviewRenderer {
         let name: String
         let dark: Bool
         let showingSaved: Bool
-        let model: SnapperModel
+        let model: AppModel
     }
 
     private static func window(_ appID: String, _ appName: String, _ title: String) -> WindowReference {
@@ -41,7 +41,7 @@ enum PreviewRenderer {
 
     private static func scenes() -> [Scene] {
         let notes = window("com.apple.Notes", "Notes", "Project Notes")
-        let xcode = window("com.apple.dt.Xcode", "Xcode", "Windows — SnapperPanel.swift")
+        let xcode = window("com.apple.dt.Xcode", "Xcode", "Windows — MenuPanel.swift")
         let safari = window("com.apple.Safari", "Safari", "Developer Documentation")
         let terminal = window("com.apple.Terminal", "Terminal", "windows — zsh")
         let mail = window("com.apple.mail", "Mail", "Inbox")
@@ -52,7 +52,7 @@ enum PreviewRenderer {
             SavedArrangement(name: "Design review", arrangement: Arrangement(layout: .center, slots: [0: mail, 1: safari, 2: calendar])),
             SavedArrangement(name: "Pairing", arrangement: Arrangement(layout: .halves, slots: [0: xcode, 1: terminal])),
         ]
-        let snapped = SnapperModel.Message(text: "Snapped 4 windows.", success: true)
+        let snapped = AppModel.Message(text: "Snapped 4 windows.", success: true)
         return [
             Scene(name: "Arrange-Columns-Dark", dark: true, showingSaved: false,
                   model: .preview(layout: .columns, windows: four, message: snapped, canUndo: true)),
@@ -75,7 +75,7 @@ enum PreviewRenderer {
 
     private static func render(_ scene: Scene, to url: URL) throws {
         let appearance = NSAppearance(named: scene.dark ? .darkAqua : .aqua)
-        let root = SnapperPanel(model: scene.model, showingSaved: scene.showingSaved)
+        let root = MenuPanel(model: scene.model, showingSaved: scene.showingSaved)
             .background(Color(nsColor: .windowBackgroundColor))
             .environment(\.colorScheme, scene.dark ? .dark : .light)
         let hosting = NSHostingView(rootView: root)

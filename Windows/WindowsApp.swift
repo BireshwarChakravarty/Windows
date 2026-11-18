@@ -1,5 +1,4 @@
 import AppKit
-import CoreGraphics
 import SwiftUI
 
 @main
@@ -25,19 +24,19 @@ enum MenuMark {
             NSColor.black.setStroke()
             NSColor.black.setFill()
 
-            let bezel = NSBezierPath(roundedRect: NSRect(x: 1.25, y: 1.5, width: 19.5, height: 10.25),
+            // An ultrawide monitor split into four columns, matching the default layout.
+            let bezel = NSBezierPath(roundedRect: NSRect(x: 1.25, y: 2.25, width: 19.5, height: 9),
                                      xRadius: 2.2, yRadius: 2.2)
             bezel.lineWidth = 1.5
             bezel.stroke()
 
-            for y in [3.75, 7.25] {
-                for x in [3.75, 11.75] {
-                    NSBezierPath(roundedRect: NSRect(x: x, y: y, width: 6.5, height: 2.5),
-                                 xRadius: 0.65, yRadius: 0.65).fill()
-                }
+            for column in 0..<4 {
+                let x = 3.25 + Double(column) * 4.125
+                NSBezierPath(roundedRect: NSRect(x: x, y: 4.25, width: 3.125, height: 5),
+                             xRadius: 0.6, yRadius: 0.6).fill()
             }
 
-            NSRect(x: 10.25, y: 11.5, width: 1.5, height: 2).fill()
+            NSRect(x: 10.25, y: 11.75, width: 1.5, height: 1.75).fill()
             NSBezierPath(roundedRect: NSRect(x: 7.25, y: 13.25, width: 7.5, height: 1.5),
                          xRadius: 0.75, yRadius: 0.75).fill()
             return true

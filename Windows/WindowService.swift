@@ -12,6 +12,8 @@ struct SnapResult: Sendable {
     var placed: Set<Int> = []
     var constrained: Set<Int> = []
     var displayChanged = false
+    /// Frames that windows had before this snap moved them, for Undo.
+    var previousFrames: [UUID: CGRect] = [:]
 }
 
 actor WindowService {
@@ -91,6 +93,7 @@ actor WindowService {
             setFrame(destination, on: element)
             if frame(of: element)?.isNear(destination, tolerance: 2) == true {
                 result.placed.insert(slot)
+                result.previousFrames[choice.id] = original
             } else {
                 if display.isActive,
                    let adjusted = frame(of: element), !adjusted.isNear(original, tolerance: 2) {
@@ -100,6 +103,18 @@ actor WindowService {
             }
         }
         return result
+    }
+
+    /// Moves windows back to frames recorded by `snap`. Returns how many reached their old frame.
+    func restore(_ previousFrames: [UUID: CGRect], on display: DisplayTarget) -> Int {
+        var restored = 0
+        for (id, target) in previousFrames {
+            guard AXIsProcessTrusted(), display.isActive, display.bounds.intersects(target),
+                  let element = tracked[id]?.element, isAdjustable(element) else { continue }
+            setFrame(target, on: element)
+            if frame(of: element)?.isNear(target, tolerance: 2) == true { restored += 1 }
+        }
+        return restored
     }
 
     private func visibleWindows(on display: DisplayTarget) -> [VisibleWindow] {

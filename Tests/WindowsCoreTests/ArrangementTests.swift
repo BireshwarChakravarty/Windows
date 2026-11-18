@@ -20,7 +20,8 @@ import CoreGraphics
     let area = CGRect(x: 104, y: -982, width: 3437, height: 944)
     for layout in Layout.allCases {
         let frames = layout.frames(in: area)
-        #expect(frames.count == 4)
+        #expect(frames.count == layout.slotCount)
+        #expect((2...4).contains(frames.count))
         #expect(frames.allSatisfy { area.contains($0) && !$0.isEmpty })
         for i in frames.indices {
             for j in frames.indices where j > i {
@@ -31,6 +32,39 @@ import CoreGraphics
     let focus = Layout.focus.frames(in: area)
     #expect(focus[1].width > focus[0].width)
     #expect(focus[1].height > focus[0].height)
+}
+
+@Test func ultrawideSplitsKeepEvenGuttersAndEdges() {
+    let area = CGRect(x: 0, y: 25, width: 5120, height: 1415)
+    for layout in [Layout.halves, .thirds, .center] {
+        let frames = layout.frames(in: area)
+        #expect(frames.first?.minX == 8)
+        #expect(frames.last?.maxX == 5112)
+        #expect(frames.allSatisfy { $0.minY == 33 && $0.maxY == 1432 })
+        for (left, right) in zip(frames, frames.dropFirst()) {
+            #expect(right.minX - left.maxX == 8)
+        }
+    }
+    let center = Layout.center.frames(in: area)
+    #expect(center[1].width > center[0].width * 1.9)
+    #expect(center[0].width == center[2].width)
+}
+
+@Test func switchingToFewerSlotsIgnoresButKeepsHiddenAssignments() {
+    let editor = makeWindow(app: "Xcode", title: "Project")
+    let browser = makeWindow(app: "Safari", title: "Docs")
+    var arrangement = Arrangement(layout: .columns, slots: [0: editor.reference, 3: browser.reference])
+    arrangement.layout = .halves
+    #expect(arrangement.activeSlots.keys.sorted() == [0])
+    #expect(arrangement.matches(in: [editor, browser]) == [0: editor])
+    arrangement.layout = .columns
+    #expect(arrangement.matches(in: [editor, browser]) == [0: editor, 3: browser])
+}
+
+@Test func savedLayoutsFromEarlierVersionsStillDecode() throws {
+    let json = #"{"layout":"focus","slots":{}}"#
+    let arrangement = try JSONDecoder().decode(Arrangement.self, from: Data(json.utf8))
+    #expect(arrangement.layout == .focus)
 }
 
 @Test func matchingKeepsTrackedWindowsWhenTitlesChange() {

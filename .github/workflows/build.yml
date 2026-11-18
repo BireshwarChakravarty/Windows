@@ -2,7 +2,8 @@ name: Build Windows for macOS
 
 on:
   push:
-    branches: [main]
+    branches: [main, "claude/**"]
+  pull_request:
   workflow_dispatch:
 
 permissions:

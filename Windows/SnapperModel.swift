@@ -17,12 +17,13 @@ final class SnapperModel {
         var saved: [SavedArrangement] = []
     }
 
-    private enum Operation { case refresh, fill, snap }
+    private enum Operation { case refresh, fill, snap, undo }
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let service = WindowService()
     @ObservationIgnored private var refreshQueued = false
     @ObservationIgnored private var requestedAccess = false
+    private var undoFrames: [UUID: CGRect] = [:]
     private var preferences: Preferences {
         didSet {
             if let data = try? JSONEncoder().encode(preferences) {
@@ -43,11 +44,13 @@ final class SnapperModel {
     var arrangement: Arrangement { preferences.draft }
     var saved: [SavedArrangement] { preferences.saved }
     var matches: [Int: WindowChoice] { arrangement.matches(in: windows) }
-    var canSnap: Bool { trusted && display != nil && !busy && !arrangement.slots.isEmpty }
+    var assignedCount: Int { arrangement.activeSlots.count }
+    var canSnap: Bool { trusted && display != nil && !busy && assignedCount > 0 }
     var canFill: Bool {
-        trusted && display != nil && !busy && arrangement.slots.count < 4
+        trusted && display != nil && !busy && assignedCount < arrangement.layout.slotCount
             && windows.count > matches.count
     }
+    var canUndo: Bool { trusted && display != nil && !busy && !undoFrames.isEmpty }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -62,6 +65,7 @@ final class SnapperModel {
     func refresh() { run(.refresh) }
     func fill() { run(.fill) }
     func snap() { run(.snap) }
+    func undo() { run(.undo) }
 
     func checkAccess() {
         if AXIsProcessTrusted() != trusted { refresh() }
@@ -82,6 +86,7 @@ final class SnapperModel {
         guard !busy, preferences.displayKey != display.key else { return }
         preferences.displayKey = display.key
         message = nil
+        undoFrames = [:]
         windows = []
         refresh()
     }
@@ -111,15 +116,16 @@ final class SnapperModel {
 
     func save(as name: String) {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !busy, !name.isEmpty, !arrangement.slots.isEmpty else { return }
+        guard !busy, !name.isEmpty, assignedCount > 0 else { return }
+        let snapshot = Arrangement(layout: arrangement.layout, slots: arrangement.activeSlots)
         if let index = savedIndex(named: name) {
             var entry = saved[index]
             entry.name = name
-            entry.arrangement = arrangement
+            entry.arrangement = snapshot
             entry.savedAt = .now
             preferences.saved[index] = entry
         } else {
-            preferences.saved.append(SavedArrangement(name: name, arrangement: arrangement))
+            preferences.saved.append(SavedArrangement(name: name, arrangement: snapshot))
         }
         message = Message(text: "Saved \(name).", success: true)
     }
@@ -209,7 +215,15 @@ final class SnapperModel {
                 if available.isEmpty { message = Message(text: "Open windows on your external display, then refresh.") }
             case .snap:
                 let result = await service.snap(draft, matches: matches, to: target)
-                showResult(result, expected: draft.slots.count)
+                if !result.previousFrames.isEmpty { undoFrames = result.previousFrames }
+                showResult(result, expected: draft.activeSlots.count)
+            case .undo:
+                let frames = undoFrames
+                undoFrames = [:]
+                let restored = await service.restore(frames, on: target)
+                message = restored == frames.count
+                    ? Message(text: restored == 1 ? "Moved 1 window back." : "Moved \(restored) windows back.", success: true)
+                    : Message(text: "Moved \(restored) of \(frames.count) windows back. Others were closed or moved.")
             }
         }
     }

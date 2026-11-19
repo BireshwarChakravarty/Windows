@@ -153,14 +153,11 @@ struct MenuPanel: View {
         VStack(spacing: 12) {
             monitorPreview
 
-            if model.display == nil {
+            if !model.trusted {
+                permissionGuide
+            } else if model.display == nil {
                 callout("display", title: model.displayWasSelected ? "External display disconnected" : "Choose your external display",
                         detail: "Connect your monitor in extended mode to arrange windows on it.")
-            } else if !model.trusted {
-                callout("lock.shield", title: "Allow window control", detail: "Enable Windows in Accessibility so it can move and resize windows.") {
-                    Button("Open Accessibility Settings", action: model.openAccessibility)
-                        .buttonStyle(primaryButton)
-                }
             } else {
                 layoutPicker
                 windowSlots
@@ -529,6 +526,58 @@ struct MenuPanel: View {
         return arrangement.activeSlots.sorted { $0.key < $1.key }
             .map(\.value.appID)
             .filter { seen.insert($0).inserted }
+    }
+
+    /// Walks through granting Accessibility, and recovers from the usual ways it goes wrong.
+    @ViewBuilder
+    private var permissionGuide: some View {
+        if model.needsMoveToApplications {
+            callout("folder.badge.plus", title: "Move Windows to Applications first",
+                    detail: "Windows is running from \(model.appLocation). macOS doesn’t keep the window-control "
+                        + "permission for apps opened from a disk image or Downloads.") {
+                Button("Move to Applications and Reopen", action: model.moveToApplications)
+                    .buttonStyle(primaryButton)
+            }
+        } else {
+            callout("lock.shield", title: "Allow window control",
+                    detail: "Windows needs Accessibility access to move and resize other apps’ windows. It doesn’t read "
+                        + "what’s in them.") {
+                VStack(alignment: .leading, spacing: 4) {
+                    permissionStep(1, "Click Open Accessibility Settings.")
+                    permissionStep(2, "Switch on Windows in the list. Enter your password if asked.")
+                    permissionStep(3, "Come back here. The panel updates by itself.")
+                }
+                .padding(.vertical, 2)
+                Button("Open Accessibility Settings", action: model.openAccessibility)
+                    .buttonStyle(primaryButton)
+                Divider().padding(.vertical, 2)
+                Text("Already switched on, or Windows isn’t in the list? An entry from an older version can be "
+                     + "left behind. Reset it, then switch Windows on again.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(secondaryInk)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 7) {
+                    Button("Reset Permission", action: model.resetAccessibility)
+                        .buttonStyle(PillButtonStyle(prominent: false, accent: accent, dark: colorScheme == .dark, height: 26))
+                    Button("Relaunch Windows") { model.relaunch() }
+                        .buttonStyle(PillButtonStyle(prominent: false, accent: accent, dark: colorScheme == .dark, height: 26))
+                }
+                if let message = model.message { resultLine(message) }
+            }
+        }
+    }
+
+    private func permissionStep(_ number: Int, _ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 7) {
+            Text("\(number)")
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundStyle(accent)
+                .frame(width: 16, height: 16)
+                .background(accent.opacity(0.14), in: .circle)
+            Text(text)
+                .font(.system(size: 11))
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private func callout(_ icon: String, title: String, detail: String) -> some View {

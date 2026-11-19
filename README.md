@@ -12,6 +12,12 @@ Windows is a native macOS 26+ menu bar utility for tiling up to four windows acr
 
 Windows runs on macOS 26 or later on Apple silicon and supported Intel Macs. Builds are ad hoc signed, not notarized. If macOS blocks the first launch, follow [Apple’s instructions for opening an app from an unidentified developer](https://support.apple.com/en-us/102445). After updating, remove Windows from the Accessibility list and add it again, because macOS treats each ad hoc signed build as a new app.
 
+### If Windows keeps asking for Accessibility
+
+- **Run it from Applications.** Opened from the disk image or Downloads, macOS runs it from a temporary location and forgets the permission. The panel offers **Move to Applications and Reopen**.
+- **Switched on but still asking?** An entry from an earlier version can be left behind. Click **Reset Permission** in the panel, switch Windows on again, and use **Relaunch Windows** if it still doesn’t notice.
+- **Every update asks again** when builds are signed ad hoc, because macOS ties the permission to that exact build. Builds signed with the repository’s certificate keep it; see [Signing](#signing).
+
 ## Arrange windows
 
 1. Connect the monitor in extended mode and click the four-column monitor icon in the menu bar. Use the display menu to select your monitor if it is missing from the panel.
@@ -60,6 +66,18 @@ Every **Build Windows for macOS** run in the **Actions** tab tests the layout lo
 | `Windows/PreviewRenderer.swift` | Renders the panel with example data for design checks |
 | `Windows/SnapCheck.swift`, `Scripts/ci/` | End-to-end snapping check that CI runs on a real Mac |
 | `Design/AppIcon.svg` | Source for the app icon |
+
+## Signing
+
+macOS remembers Accessibility access by the app’s code signature. An ad hoc signature changes with every build, so each update has to be allowed again. A stable certificate keeps the same identity across builds, so the permission carries over. Every CI run checks this on a real Mac: it allows one build signed with a test certificate, then confirms an update signed with the same certificate is still trusted and an ad hoc build is not.
+
+To sign releases with a stable certificate, run this once on your Mac:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/BireshwarChakravarty/Windows/main/Scripts/signing/setup-github-signing.sh | bash
+```
+
+It creates a self-signed certificate in `~/Library/Application Support/Windows Signing` and saves it as the `SIGNING_CERT_P12` and `SIGNING_CERT_PASSWORD` repository secrets (with the GitHub CLI if it’s signed in, otherwise it opens the secrets page and puts each value on your clipboard). Builds without the secrets are signed ad hoc as before. Gatekeeper still treats the app as from an unidentified developer; only an Apple Developer ID and notarization change that.
 
 ## Previews
 

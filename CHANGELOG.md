@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3
+
+- **Accessibility setup that recovers on its own.** The panel walks through allowing window control step by step and notices as soon as it’s allowed, even if the panel was closed.
+- **Move to Applications.** If Windows is opened from the disk image or Downloads, where macOS doesn’t keep the permission, the panel offers to move it to Applications and reopen it.
+- **Reset Permission.** Clears an Accessibility entry left behind by an older version, the usual reason Windows is switched on but still asks, and adds Windows to the list again. **Relaunch Windows** is there too.
+- **Keeps the permission across updates** once builds are signed with a stable certificate (see the README). Every build checks this on a real Mac.
+
 ## 1.2
 
 - **Rebuilt window snapping.** Windows now waits for each app to finish moving its window, retries up to three times, and gives slow apps up to 1.5 seconds to respond. Busy Chrome windows were sometimes moved back to where they started; that no longer happens.

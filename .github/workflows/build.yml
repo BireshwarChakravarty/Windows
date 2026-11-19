@@ -28,8 +28,24 @@ jobs:
           persist-credentials: false
       - name: Test layout and restoration logic
         run: swift test
+      - name: Set up the signing certificate
+        env:
+          SIGNING_CERT_P12: ${{ secrets.SIGNING_CERT_P12 }}
+          SIGNING_CERT_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: |
+          if [[ -z "$SIGNING_CERT_P12" ]]; then
+            echo "::warning::No SIGNING_CERT_P12 secret: this build is signed ad hoc, so macOS will ask for Accessibility again after updating. Run Scripts/signing/setup-github-signing.sh once to fix."
+            exit 0
+          fi
+          printf '%s' "$SIGNING_CERT_P12" | base64 --decode > "$RUNNER_TEMP/signing.p12"
+          eval "$(Scripts/signing/import-certificate.sh "$RUNNER_TEMP/signing.p12" "$SIGNING_CERT_PASSWORD")"
+          rm -f "$RUNNER_TEMP/signing.p12"
+          echo "SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
+          echo "SIGNING_KEYCHAIN=$SIGNING_KEYCHAIN" >> "$GITHUB_ENV"
       - name: Build and package the universal app
         run: ./Scripts/build-app.sh
+      - name: Check that Accessibility access survives an update
+        run: Scripts/ci/permission-persists.sh "$PWD/dist/Windows.app"
       - name: Grant Accessibility on the CI Mac
         continue-on-error: true
         run: |

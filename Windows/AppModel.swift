@@ -65,7 +65,16 @@ final class AppModel {
         let version = "\(info?["CFBundleShortVersionString"] as? String ?? "?") (\(info?["CFBundleVersion"] as? String ?? "?"))"
         ActivityLog.shared.write("Windows \(version) started on macOS \(ProcessInfo.processInfo.operatingSystemVersionString) "
             + "from \(appLocation); Accessibility \(trusted ? "allowed" : "not allowed")")
-        if !trusted { watchForAccess() }
+        if !trusted {
+            watchForAccess()
+            // Show the system prompt once per launch, which also adds Windows to the Accessibility list
+            // ready to switch on. Skipped for the command-line checks CI runs.
+            if !CommandLine.arguments.contains(where: { $0.hasPrefix("--") }) {
+                requestedAccess = true
+                let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+                _ = AXIsProcessTrustedWithOptions(options)
+            }
+        }
     }
 
     /// Shows a short confirmation in the panel.

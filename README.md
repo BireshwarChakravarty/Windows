@@ -6,6 +6,14 @@ Windows is a native macOS 26+ menu bar utility for tiling up to four windows acr
 
 ## Install
 
+Fresh install from Terminal (downloads the latest release, replaces any old copy and clears its stale Accessibility entry):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/BireshwarChakravarty/Windows/main/Scripts/install.sh | bash
+```
+
+Or by hand:
+
 1. Download `Windows-macOS26.dmg` from the [latest release](https://github.com/BireshwarChakravarty/Windows/releases/latest).
 2. Open it and drag **Windows** to **Applications**, then open Windows from Applications.
 3. Click **Open Accessibility Settings** in the panel and turn on Windows under **System Settings → Privacy & Security → Accessibility**. If it is missing, use the **+** button there to add it.

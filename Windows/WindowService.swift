@@ -41,6 +41,9 @@ actor WindowService {
     }
 
     private static let readTimeout: Float = 0.5
+    /// A second, longer chance for apps that are busy, such as Chrome building its accessibility tree
+    /// the first time a new process asks for its windows.
+    private static let slowReadTimeout: Float = 3
     private static let writeTimeout: Float = 1.5
     private static let enhancedUserInterface = "AXEnhancedUserInterface"
 
@@ -48,7 +51,7 @@ actor WindowService {
 
     // MARK: Scanning
 
-    func scan(_ display: DisplayTarget, applications: [RunningApp]) -> [WindowChoice] {
+    func scan(_ display: DisplayTarget, applications: [RunningApp]) async -> [WindowChoice] {
         guard AXIsProcessTrusted(), display.isActive else {
             tracked = [:]
             ActivityLog.shared.write("Scan skipped: \(AXIsProcessTrusted() ? "\(display.name) is not active" : "Accessibility access not granted")")
@@ -62,12 +65,18 @@ actor WindowService {
 
         for app in applications {
             guard var visibleForApp = byProcess[app.pid] else { continue }
-            let application = AXUIElementCreateApplication(app.pid)
-            AXUIElementSetMessagingTimeout(application, Self.readTimeout)
-            guard let elements = attribute(application, kAXWindowsAttribute) as? [AXUIElement] else { continue }
+            guard let elements = await windowElements(of: app) else { continue }
+            let onScreen = visibleForApp.count
+            defer {
+                if onScreen > 0, visibleForApp.count == onScreen {
+                    ActivityLog.shared.write("  \(app.name) has \(onScreen) windows on screen but none could be matched "
+                        + "(\(elements.count) reported by the app)")
+                }
+            }
 
             for element in elements {
                 AXUIElementSetMessagingTimeout(element, Self.readTimeout)
+                if frame(of: element) == nil { AXUIElementSetMessagingTimeout(element, Self.slowReadTimeout) }
                 guard let frame = frame(of: element), display.bounds.contains(frame.center),
                       let index = visibleForApp.firstIndex(where: { $0.frame.isNear(frame, tolerance: 16) }),
                       isAdjustable(element) else { continue }
@@ -181,6 +190,28 @@ actor WindowService {
         return restored
     }
 
+    /// The app's windows as Accessibility elements. Apps that are busy, or that are still building their
+    /// accessibility tree (Chrome does this the first time a process asks), can time out or report no
+    /// windows at first, so this asks again with a longer timeout and a short pause.
+    private func windowElements(of app: RunningApp) async -> [AXUIElement]? {
+        let application = AXUIElementCreateApplication(app.pid)
+        var lastError = AXError.success
+        for attempt in 1...3 {
+            AXUIElementSetMessagingTimeout(application, attempt == 1 ? Self.readTimeout : Self.slowReadTimeout)
+            let (value, error) = copyAttribute(application, kAXWindowsAttribute)
+            lastError = error
+            if let elements = value as? [AXUIElement], !elements.isEmpty {
+                if attempt > 1 { ActivityLog.shared.write("  \(app.name) listed its windows on attempt \(attempt)") }
+                return elements
+            }
+            if error != .success && error != .cannotComplete && error != .noValue { break }
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        ActivityLog.shared.write("  Couldn’t read the windows of \(app.name): "
+            + (lastError == .success ? "it reported none" : lastError.logText))
+        return nil
+    }
+
     /// Current frame of a scanned window, for diagnostics.
     func currentFrame(of id: UUID) -> CGRect? {
         tracked[id].flatMap { frame(of: $0.element) }
@@ -260,9 +291,14 @@ actor WindowService {
     }
 
     private func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
+        let (value, error) = copyAttribute(element, name)
+        return error == .success ? value : nil
+    }
+
+    private func copyAttribute(_ element: AXUIElement, _ name: String) -> (CFTypeRef?, AXError) {
         var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
-        return value
+        let error = AXUIElementCopyAttributeValue(element, name as CFString, &value)
+        return (value, error)
     }
 
     private func frame(of element: AXUIElement) -> CGRect? {

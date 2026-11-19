@@ -4,6 +4,7 @@
 
 - **Rebuilt window snapping.** Windows now waits for each app to finish moving its window, retries up to three times, and gives slow apps up to 1.5 seconds to respond. Busy Chrome windows were sometimes moved back to where they started; that no longer happens.
 - **Chrome and Electron apps.** Windows temporarily turns off enhanced accessibility mode, which makes these apps animate window changes, while it moves their windows.
+- **Busy apps aren’t missed.** If an app is slow to list its windows, as Chrome can be the first time it is asked, Windows asks again instead of showing its windows as missing.
 - **Minimum sizes.** A window that can’t shrink to its slot now stays at the slot’s corner, kept on screen, instead of jumping back.
 - **Clearer results.** The panel says how many windows snapped and which ones couldn’t shrink, didn’t respond, or aren’t open.
 - **Activity log.** Open it from the bottom of the panel to see each window’s starting frame, target, attempts, errors and final frame. You can also show it in Finder, copy recent entries, or clear it. It’s stored at `~/Library/Logs/Windows/Windows.log`.

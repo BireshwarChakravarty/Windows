@@ -15,18 +15,19 @@ struct DisplayTarget: Identifiable, Equatable, Sendable {
     var resolution: String { "\(pixelsWide) × \(pixelsHigh)" }
 
     var isActive: Bool {
-        CGDisplayIsActive(id) != 0 && CGDisplayIsBuiltin(id) == 0 && CGDisplayIsInMirrorSet(id) == 0
+        CGDisplayIsActive(id) != 0 && CGDisplayIsInMirrorSet(id) == 0
             && CGDisplayBounds(id) == bounds && Self.key(for: id) == key
     }
 
     @MainActor
-    static func connected() -> [Self] {
+    /// External displays in extended mode. `includeBuiltIn` also lists the built-in display, for checks.
+    static func connected(includeBuiltIn: Bool = false) -> [Self] {
         NSScreen.screens.compactMap { screen in
             guard let identifier = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else {
                 return nil
             }
             let id = identifier.uint32Value
-            guard CGDisplayIsBuiltin(id) == 0, CGDisplayIsInMirrorSet(id) == 0 else { return nil }
+            guard includeBuiltIn || CGDisplayIsBuiltin(id) == 0, CGDisplayIsInMirrorSet(id) == 0 else { return nil }
 
             // Accessibility and the WindowServer use the top-left corner as the origin.
             let bounds = CGDisplayBounds(id)

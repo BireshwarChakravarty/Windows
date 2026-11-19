@@ -118,3 +118,31 @@ private func makeWindow(app: String, title: String, sessionID: UUID = UUID(), ac
     WindowChoice(reference: WindowReference(sessionID: sessionID, appID: app, appName: app, title: title,
                                            accessibilityID: accessibilityID))
 }
+
+@Test func placementAcceptsExactAndCellSizedWindows() {
+    let slot = CGRect(x: 8, y: 33, width: 1268, height: 1399)
+    #expect(Placement.evaluate(slot, target: slot) == .placed)
+    // Terminal-style windows stop short of the slot by part of a character cell.
+    #expect(Placement.evaluate(CGRect(x: 8, y: 33, width: 1261, height: 1386), target: slot) == .placed)
+    #expect(Placement.evaluate(CGRect(x: 9.5, y: 34, width: 1268, height: 1399), target: slot) == .placed)
+}
+
+@Test func placementReportsMinimumSizesAndWindowsThatDidNotMove() {
+    let slot = CGRect(x: 8, y: 33, width: 470, height: 1040)
+    #expect(Placement.evaluate(CGRect(x: 8, y: 33, width: 500, height: 1040), target: slot) == .tooLarge)
+    // A window still at its old frame, or caught mid-animation, is not placed.
+    #expect(Placement.evaluate(CGRect(x: 135, y: 195, width: 4700, height: 950), target: slot) == .failed)
+    #expect(Placement.evaluate(CGRect(x: 60, y: 90, width: 900, height: 1040), target: slot) == .failed)
+    // Moved but not resized yet.
+    #expect(Placement.evaluate(CGRect(x: 8, y: 33, width: 300, height: 700), target: slot) == .failed)
+}
+
+@Test func clampingKeepsLargeWindowsOnScreen() {
+    let area = CGRect(x: 0, y: 25, width: 1920, height: 1055)
+    let lastColumn = CGRect(x: 1444, y: 33, width: 468, height: 1039)
+    let frame = Placement.clamped(CGSize(width: 500, height: 1039), at: lastColumn, in: area)
+    #expect(frame.maxX == 1920)
+    #expect(frame.minY == 33)
+    let firstColumn = CGRect(x: 8, y: 33, width: 468, height: 1039)
+    #expect(Placement.clamped(CGSize(width: 500, height: 600), at: firstColumn, in: area).origin == firstColumn.origin)
+}

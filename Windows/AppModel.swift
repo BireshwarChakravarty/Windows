@@ -177,13 +177,7 @@ final class AppModel {
         guard trusted, let target = display else { return }
         busy = true
         if operation != .refresh { message = nil }
-        let applications = NSWorkspace.shared.runningApplications.compactMap { app -> RunningApp? in
-            let pid = app.processIdentifier
-            guard pid > 0, pid != ProcessInfo.processInfo.processIdentifier,
-                  app.activationPolicy != .prohibited, !app.isHidden else { return nil }
-            let id = app.bundleIdentifier ?? app.executableURL?.path ?? "pid:\(pid)"
-            return RunningApp(pid: pid, id: id, name: app.localizedName ?? id)
-        }
+        let applications = RunningApp.visible()
 
         Task {
             defer {
@@ -250,14 +244,35 @@ final class AppModel {
     }
 
     private func showResult(_ result: SnapResult, expected: Int) {
+        let placed = result.placed
         if result.displayChanged {
-            message = Message(text: "The display changed. \(result.placed.count) of \(expected) windows snapped.")
-        } else if result.placed.count == expected {
+            message = Message(text: "The display changed. \(placed) of \(expected) windows snapped.")
+            return
+        }
+        if placed == expected {
             message = Message(text: expected == 1 ? "Snapped 1 window." : "Snapped \(expected) windows.", success: true)
-        } else if !result.constrained.isEmpty {
-            message = Message(text: "\(result.placed.count) of \(expected) snapped. Some windows couldn’t fit their slots.")
-        } else {
-            message = Message(text: "\(result.placed.count) of \(expected) snapped. Reopen missing windows or choose replacements.")
+            return
+        }
+        func count(_ number: Int) -> String { number == 1 ? "1 window" : "\(number) windows" }
+        var problems: [String] = []
+        if result.tooLarge > 0 { problems.append("\(count(result.tooLarge)) can’t shrink to fit") }
+        if result.failed > 0 { problems.append("\(count(result.failed)) didn’t respond, so try Snap again") }
+        let missing = expected - result.outcomes.count
+        if missing > 0 { problems.append("\(count(missing)) not open") }
+        message = Message(text: "\(placed) of \(expected) snapped. " + problems.joined(separator: "; ") + ".")
+    }
+}
+
+extension RunningApp {
+    /// Apps that can own windows on screen, excluding Windows itself.
+    @MainActor
+    static func visible() -> [RunningApp] {
+        NSWorkspace.shared.runningApplications.compactMap { app -> RunningApp? in
+            let pid = app.processIdentifier
+            guard pid > 0, pid != ProcessInfo.processInfo.processIdentifier,
+                  app.activationPolicy != .prohibited, !app.isHidden else { return nil }
+            let id = app.bundleIdentifier ?? app.executableURL?.path ?? "pid:\(pid)"
+            return RunningApp(pid: pid, id: id, name: app.localizedName ?? id)
         }
     }
 }

@@ -7,7 +7,9 @@ struct WindowsApp: App {
     @State private var model = AppModel()
 
     init() {
-        PreviewRenderer.renderIfRequested()
+        if !SnapCheck.runIfRequested() {
+            PreviewRenderer.renderIfRequested()
+        }
     }
 
     var body: some Scene {

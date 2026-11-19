@@ -30,6 +30,20 @@ jobs:
         run: swift test
       - name: Build and package the universal app
         run: ./Scripts/build-app.sh
+      - name: Grant Accessibility on the CI Mac
+        continue-on-error: true
+        run: |
+          sudo python3 Scripts/ci/grant-accessibility.py "$PWD/dist/Windows.app"
+          sudo killall tccd || true
+      - name: Snap real windows end to end
+        run: Scripts/ci/snap-e2e.sh "$PWD/dist/Windows.app"
+      - name: Upload snap check results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: snap-e2e
+          path: ${{ runner.temp }}/snap-e2e/*.*
+          if-no-files-found: warn
       - name: Render the panel with example data
         continue-on-error: true
         run: |

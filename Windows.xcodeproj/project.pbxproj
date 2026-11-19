@@ -11,6 +11,8 @@
 		A00100000000000000000005 /* WindowService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000005; };
 		A00100000000000000000006 /* Arrangement.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000006; };
 		A00100000000000000000008 /* PreviewRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000000A; };
+		A00100000000000000000009 /* SnapCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000000B; };
+		A0010000000000000000000A /* Placement.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000000C; };
 		A00100000000000000000007 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000007; };
 
 		A00200000000000000000001 /* WindowsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowsApp.swift; sourceTree = "<group>"; };
@@ -20,6 +22,8 @@
 		A00200000000000000000005 /* WindowService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowService.swift; sourceTree = "<group>"; };
 		A00200000000000000000006 /* Arrangement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Arrangement.swift; sourceTree = "<group>"; };
 		A0020000000000000000000A /* PreviewRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewRenderer.swift; sourceTree = "<group>"; };
+		A0020000000000000000000B /* SnapCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapCheck.swift; sourceTree = "<group>"; };
+		A0020000000000000000000C /* Placement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Placement.swift; sourceTree = "<group>"; };
 		A00200000000000000000007 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A00200000000000000000008 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A00200000000000000000009 /* Windows.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Windows.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -38,6 +42,7 @@
 				A00200000000000000000004,
 				A00200000000000000000005,
 				A0020000000000000000000A,
+				A0020000000000000000000B,
 				A00300000000000000000003,
 				A00200000000000000000007,
 				A00200000000000000000008,
@@ -47,7 +52,7 @@
 		};
 		A00300000000000000000003 /* Core */ = {
 			isa = PBXGroup;
-			children = (A00200000000000000000006);
+			children = (A00200000000000000000006, A0020000000000000000000C);
 			path = Core;
 			sourceTree = "<group>";
 		};
@@ -81,6 +86,8 @@
 				A00100000000000000000005,
 				A00100000000000000000006,
 				A00100000000000000000008,
+				A00100000000000000000009,
+				A0010000000000000000000A,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

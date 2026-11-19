@@ -21,7 +21,16 @@ xcodebuild \
 app="$repo_dir/dist/Windows.app"
 archive="$repo_dir/dist/Windows-macOS26.zip"
 disk_image="$repo_dir/dist/Windows-macOS26.dmg"
+# Sign with a stable certificate when one is set up, so macOS keeps the Accessibility permission
+# across updates. Without one, the build keeps Xcode's ad hoc signature.
+if [[ -n "${SIGNING_IDENTITY:-}" ]]; then
+    codesign --force --options runtime --timestamp=none \
+        ${SIGNING_KEYCHAIN:+--keychain "$SIGNING_KEYCHAIN"} --sign "$SIGNING_IDENTITY" "$app"
+else
+    echo "Signing ad hoc: set SIGNING_IDENTITY to keep Accessibility access across updates." >&2
+fi
 codesign --verify --strict "$app"
+codesign --display --requirements - "$app" 2>&1 | grep designated || true
 lipo "$app/Contents/MacOS/Windows" -verify_arch arm64 x86_64
 ditto -c -k --keepParent "$app" "$archive"
 

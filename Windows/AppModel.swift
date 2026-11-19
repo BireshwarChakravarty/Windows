@@ -23,6 +23,7 @@ final class AppModel {
     @ObservationIgnored private var refreshQueued = false
     @ObservationIgnored private var requestedAccess = false
     @ObservationIgnored private var isPreview = false
+    @ObservationIgnored private var accessWatcher: Task<Void, Never>?
     private var undoFrames: [UUID: CGRect] = [:]
     private var preferences: Preferences {
         didSet {
@@ -62,8 +63,18 @@ final class AppModel {
         }
         let info = Bundle.main.infoDictionary
         let version = "\(info?["CFBundleShortVersionString"] as? String ?? "?") (\(info?["CFBundleVersion"] as? String ?? "?"))"
-        ActivityLog.shared.write("Windows \(version) started on macOS \(ProcessInfo.processInfo.operatingSystemVersionString); "
-            + "Accessibility \(trusted ? "allowed" : "not allowed")")
+        ActivityLog.shared.write("Windows \(version) started on macOS \(ProcessInfo.processInfo.operatingSystemVersionString) "
+            + "from \(appLocation); Accessibility \(trusted ? "allowed" : "not allowed")")
+        if !trusted {
+            watchForAccess()
+            // Show the system prompt once per launch, which also adds Windows to the Accessibility list
+            // ready to switch on. Skipped for the command-line checks CI runs.
+            if !CommandLine.arguments.contains(where: { $0.hasPrefix("--") }) {
+                requestedAccess = true
+                let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+                _ = AXIsProcessTrustedWithOptions(options)
+            }
+        }
     }
 
     /// Shows a short confirmation in the panel.
@@ -80,14 +91,100 @@ final class AppModel {
         if !isPreview, AXIsProcessTrusted() != trusted { refresh() }
     }
 
+    // MARK: Accessibility permission
+
+    /// macOS runs apps opened from a disk image or a quarantined download from a temporary, read-only
+    /// location (App Translocation). Permission granted there doesn't stick, so the app must be moved.
+    var needsMoveToApplications: Bool {
+        let path = Bundle.main.bundlePath
+        return path.contains("/AppTranslocation/") || path.hasPrefix("/Volumes/")
+    }
+
+    var appLocation: String {
+        (Bundle.main.bundlePath as NSString).abbreviatingWithTildeInPath
+    }
+
     func openAccessibility() {
         if !requestedAccess {
             requestedAccess = true
+            // Adds Windows to the Accessibility list (switched off) and shows the system prompt.
             let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
             _ = AXIsProcessTrustedWithOptions(options)
         }
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
+        }
+        ActivityLog.shared.write("Opened Accessibility settings for \(appLocation)")
+        watchForAccess()
+    }
+
+    /// Removes this app's Accessibility entry, which can be left over from an earlier build that macOS
+    /// no longer matches, then adds it again so it can be switched on.
+    func resetAccessibility() {
+        guard let identifier = Bundle.main.bundleIdentifier else { return }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/tccutil")
+        process.arguments = ["reset", "Accessibility", identifier]
+        do {
+            try process.run()
+            process.waitUntilExit()
+            ActivityLog.shared.write("Reset the Accessibility entry for \(identifier): exit \(process.terminationStatus)")
+        } catch {
+            ActivityLog.shared.write("Couldn’t reset the Accessibility entry: \(error.localizedDescription)")
+        }
+        requestedAccess = false
+        message = Message(text: "Reset. Switch Windows on again in the list that opens.", success: true)
+        openAccessibility()
+    }
+
+    /// Copies the app to /Applications, clears the download quarantine on the copy, and opens it.
+    func moveToApplications() {
+        let source = Bundle.main.bundleURL
+        let destination = URL(fileURLWithPath: "/Applications/Windows.app")
+        let files = FileManager.default
+        do {
+            if files.fileExists(atPath: destination.path) {
+                try files.trashItem(at: destination, resultingItemURL: nil)
+            }
+            try files.copyItem(at: source, to: destination)
+            let xattr = Process()
+            xattr.executableURL = URL(fileURLWithPath: "/usr/bin/xattr")
+            xattr.arguments = ["-dr", "com.apple.quarantine", destination.path]
+            try? xattr.run()
+            xattr.waitUntilExit()
+            ActivityLog.shared.write("Moved Windows from \(appLocation) to /Applications; relaunching")
+            relaunch(at: destination)
+        } catch {
+            ActivityLog.shared.write("Couldn’t move Windows to Applications: \(error.localizedDescription)")
+            message = Message(text: "Couldn’t move Windows automatically. Drag it to Applications in Finder, then open it from there.")
+        }
+    }
+
+    /// Opens a fresh copy of the app and quits this one. macOS sometimes only applies a newly granted
+    /// Accessibility permission after a relaunch.
+    func relaunch(at url: URL = Bundle.main.bundleURL) {
+        ActivityLog.shared.write("Relaunching from \((url.path as NSString).abbreviatingWithTildeInPath)")
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.createsNewApplicationInstance = true
+        NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, _ in
+            Task { @MainActor in NSApp.terminate(nil) }
+        }
+    }
+
+    /// Polls for the permission while it is missing, so the panel is ready even if it was closed
+    /// while the person used System Settings.
+    private func watchForAccess() {
+        guard !isPreview, accessWatcher == nil else { return }
+        accessWatcher = Task { [weak self] in
+            for _ in 0..<600 {
+                try? await Task.sleep(for: .seconds(1))
+                guard let self else { return }
+                if AXIsProcessTrusted() {
+                    self.refresh()
+                    break
+                }
+            }
+            self?.accessWatcher = nil
         }
     }
 
@@ -246,13 +343,13 @@ final class AppModel {
 
     /// A model with fixed example state for rendering previews. It never scans or moves windows.
     static func preview(layout: Layout, windows references: [WindowReference], saved: [SavedArrangement] = [],
-                        message: Message? = nil, canUndo: Bool = false) -> AppModel {
+                        message: Message? = nil, canUndo: Bool = false, trusted: Bool = true) -> AppModel {
         let suite = "Windows.preview"
         let defaults = UserDefaults(suiteName: suite) ?? .standard
         defaults.removePersistentDomain(forName: suite)
         let model = AppModel(defaults: defaults)
         model.isPreview = true
-        model.trusted = true
+        model.trusted = trusted
         model.displays = [DisplayTarget(id: 0, key: "preview", name: "Ultrawide display", pixelsWide: 5120,
                                         pixelsHigh: 1440, bounds: .zero, workArea: .zero)]
         model.windows = references.map(WindowChoice.init(reference:))

@@ -1,10 +1,12 @@
 Windows tiles up to four windows across a 5120 × 1440 ultrawide display from the menu bar, and saves layouts so you can bring them back in one click.
 
-**What's new in 1.2**
-- Rebuilt window snapping. Windows now waits for each app to finish moving its window, retries, and handles apps such as Chrome that animate window changes in enhanced accessibility mode. Previously busy Chrome windows could be moved back to where they started.
-- Windows with a minimum size larger than their slot stay at the slot instead of jumping back.
-- Activity log: open it from the bottom of the panel to see what happened to every window.
-- Clearer messages when a window can't shrink, doesn't respond, or isn't open.
+**What's new in 1.3**
+- Step-by-step Accessibility setup in the panel that notices as soon as you allow it.
+- If Windows was opened from the disk image or Downloads, it offers to move itself to Applications, where macOS keeps the permission.
+- Reset Permission and Relaunch buttons fix the "switched on but still asking" case.
+- Builds signed with the project's certificate keep the permission across updates.
+
+1.2 rebuilt window snapping for Chrome and other busy apps and added the activity log. See CHANGELOG.md for everything.
 
 **Install:** open `Windows-macOS26.dmg`, drag Windows to Applications, then open it and allow it under System Settings → Privacy & Security → Accessibility. Requires macOS 26 or later on Apple silicon or a supported Intel Mac.
 

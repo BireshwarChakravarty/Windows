@@ -12,6 +12,16 @@ import AppKit
 enum SnapCheck {
     static func runIfRequested() -> Bool {
         let arguments = CommandLine.arguments
+        if arguments.contains("--trust-check") {
+            // Reports whether this exact copy of the app has Accessibility access, for CI.
+            let trusted = AXIsProcessTrusted()
+            let line = "\(trusted ? "TRUSTED" : "NOT TRUSTED") \(Bundle.main.bundlePath)"
+            print(line)
+            if let index = arguments.firstIndex(of: "--output"), arguments.indices.contains(index + 1) {
+                try? (line + "\n").write(toFile: arguments[index + 1], atomically: true, encoding: .utf8)
+            }
+            exit(trusted ? 0 : 1)
+        }
         guard let index = arguments.firstIndex(of: "--snap-check"), arguments.indices.contains(index + 1),
               let layout = Layout(rawValue: arguments[index + 1]) else { return false }
         let output = arguments.firstIndex(of: "--output")

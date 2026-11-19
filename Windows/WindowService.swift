@@ -51,6 +51,7 @@ actor WindowService {
     func scan(_ display: DisplayTarget, applications: [RunningApp]) -> [WindowChoice] {
         guard AXIsProcessTrusted(), display.isActive else {
             tracked = [:]
+            ActivityLog.shared.write("Scan skipped: \(AXIsProcessTrusted() ? "\(display.name) is not active" : "Accessibility access not granted")")
             return []
         }
 
@@ -84,6 +85,8 @@ actor WindowService {
         }
 
         tracked = Dictionary(uniqueKeysWithValues: results.map { ($0.window.choice.id, $0.window) })
+        let names = results.sorted { $0.order < $1.order }.map(\.window.choice.reference.appName)
+        ActivityLog.shared.write("Scan \(display.name): \(results.count) windows (\(names.joined(separator: ", ")))")
         return results.sorted { $0.order < $1.order }.map(\.window.choice)
     }
 
@@ -101,6 +104,11 @@ actor WindowService {
                 return (slot, window, target)
             }
 
+        let log = ActivityLog.shared
+        log.write("Snap \(arrangement.layout.name) on \(display.name) \(display.resolution), "
+            + "work area \(display.workArea.logText), \(assignments.count) of \(matches.count) windows found")
+        let appNames = Dictionary(assignments.map { ($0.window.pid, $0.window.choice.reference.appName) }) { first, _ in first }
+
         // Turn enhanced accessibility mode off once per app while its windows move.
         var restoreEnhanced: [pid_t: AXUIElement] = [:]
         for pid in Set(assignments.map(\.window.pid)) {
@@ -110,8 +118,9 @@ actor WindowService {
                 AXUIElementSetAttributeValue(application, Self.enhancedUserInterface as CFString, kCFBooleanTrue)
             }
             if attribute(application, Self.enhancedUserInterface) as? Bool == true {
-                AXUIElementSetAttributeValue(application, Self.enhancedUserInterface as CFString, kCFBooleanFalse)
+                let error = AXUIElementSetAttributeValue(application, Self.enhancedUserInterface as CFString, kCFBooleanFalse)
                 restoreEnhanced[pid] = application
+                log.write("  \(appNames[pid] ?? "pid \(pid)") is in enhanced accessibility mode; turned it off while moving (\(error.logText))")
             }
         }
 
@@ -121,13 +130,20 @@ actor WindowService {
                 break
             }
             let element = assignment.window.element
+            let reference = assignment.window.choice.reference
+            let label = "Slot \(assignment.slot + 1) \(reference.appName) “\(reference.title.truncatedForLog())”"
             AXUIElementSetMessagingTimeout(element, Self.writeTimeout)
             guard let original = frame(of: element), isAdjustable(element) else {
                 result.outcomes[assignment.slot] = .failed
+                log.write("  \(label): can’t be moved now (closed, minimized, full screen or not resizable)")
                 continue
             }
 
+            log.write("  \(label): from \(original.logText) to \(assignment.target.logText)")
+            let started = Date()
             let (outcome, final) = await place(element, at: assignment.target, in: display.workArea)
+            log.write(String(format: "  %@: %@ after %.2f s, now %@", label, outcome.rawValue,
+                             Date().timeIntervalSince(started), final?.logText ?? "unknown"))
             result.outcomes[assignment.slot] = outcome
             result.finalFrames[assignment.slot] = final
             if outcome != .failed || !(final?.isNear(original, tolerance: 2) ?? true) {
@@ -138,11 +154,14 @@ actor WindowService {
         for application in restoreEnhanced.values {
             AXUIElementSetAttributeValue(application, Self.enhancedUserInterface as CFString, kCFBooleanTrue)
         }
+        log.write("Snap finished: \(result.placed) placed, \(result.tooLarge) too large, \(result.failed) not responding"
+            + (result.displayChanged ? ", display changed" : ""))
         return result
     }
 
     /// Moves windows back to frames recorded by `snap`. Returns how many reached their old frame.
     func restore(_ previousFrames: [UUID: CGRect], on display: DisplayTarget) async -> Int {
+        ActivityLog.shared.write("Undo: moving \(previousFrames.count) windows back")
         var restored = 0
         for (id, target) in previousFrames {
             guard AXIsProcessTrusted(), display.isActive, display.bounds.intersects(target),
@@ -151,7 +170,9 @@ actor WindowService {
             let application = AXUIElementCreateApplication(window.pid)
             let enhanced = attribute(application, Self.enhancedUserInterface) as? Bool == true
             if enhanced { AXUIElementSetAttributeValue(application, Self.enhancedUserInterface as CFString, kCFBooleanFalse) }
-            if await place(window.element, at: target, in: display.bounds).outcome != .failed { restored += 1 }
+            let outcome = await place(window.element, at: target, in: display.bounds).outcome
+            ActivityLog.shared.write("  \(window.choice.reference.appName) back to \(target.logText): \(outcome.rawValue)")
+            if outcome != .failed { restored += 1 }
             if enhanced { AXUIElementSetAttributeValue(application, Self.enhancedUserInterface as CFString, kCFBooleanTrue) }
         }
         return restored
@@ -166,11 +187,17 @@ actor WindowService {
     private func place(_ element: AXUIElement, at target: CGRect, in area: CGRect) async -> (outcome: PlacementOutcome, frame: CGRect?) {
         var outcome = PlacementOutcome.failed
         var latest: CGRect?
-        for _ in 0..<3 {
-            setFrame(target, on: element)
+        for attempt in 1...3 {
+            let errors = setFrame(target, on: element)
             latest = await settledFrame(of: element, toward: target)
-            guard let latest else { continue }
+            guard let latest else {
+                ActivityLog.shared.write("    attempt \(attempt): couldn’t read the frame back\(errors)")
+                continue
+            }
             outcome = Placement.evaluate(latest, target: target)
+            if outcome != .placed || attempt > 1 || !errors.isEmpty {
+                ActivityLog.shared.write("    attempt \(attempt): \(outcome.rawValue) at \(latest.logText)\(errors)")
+            }
             if outcome == .placed { break }
             if outcome == .tooLarge {
                 // The app enforces a minimum size: keep it at the slot, inside the work area.
@@ -247,24 +274,31 @@ actor WindowService {
         return CGRect(origin: point, size: dimensions)
     }
 
-    private func setFrame(_ frame: CGRect, on element: AXUIElement) {
+    /// Requests a frame. Returns any errors as text for the log, or an empty string.
+    @discardableResult
+    private func setFrame(_ frame: CGRect, on element: AXUIElement) -> String {
         // Size first so the move is not clamped by the old size, then position, then size again
         // because some apps clamp the first resize against the window's old position.
-        setSize(frame.size, on: element)
-        setPosition(frame.origin, on: element)
-        setSize(frame.size, on: element)
+        let errors = [("size", setSize(frame.size, on: element)),
+                      ("position", setPosition(frame.origin, on: element)),
+                      ("size", setSize(frame.size, on: element))]
+            .filter { $0.1 != .success }
+            .map { "\($0.0): \($0.1.logText)" }
+        return errors.isEmpty ? "" : " (" + errors.joined(separator: ", ") + ")"
     }
 
-    private func setPosition(_ origin: CGPoint, on element: AXUIElement) {
+    @discardableResult
+    private func setPosition(_ origin: CGPoint, on element: AXUIElement) -> AXError {
         var point = origin
-        guard let value = AXValueCreate(.cgPoint, &point) else { return }
-        AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, value)
+        guard let value = AXValueCreate(.cgPoint, &point) else { return .illegalArgument }
+        return AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, value)
     }
 
-    private func setSize(_ size: CGSize, on element: AXUIElement) {
+    @discardableResult
+    private func setSize(_ size: CGSize, on element: AXUIElement) -> AXError {
         var dimensions = size
-        guard let value = AXValueCreate(.cgSize, &dimensions) else { return }
-        AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, value)
+        guard let value = AXValueCreate(.cgSize, &dimensions) else { return .illegalArgument }
+        return AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, value)
     }
 }
 

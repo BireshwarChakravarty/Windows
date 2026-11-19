@@ -60,6 +60,15 @@ final class AppModel {
         } else {
             preferences = Preferences()
         }
+        let info = Bundle.main.infoDictionary
+        let version = "\(info?["CFBundleShortVersionString"] as? String ?? "?") (\(info?["CFBundleVersion"] as? String ?? "?"))"
+        ActivityLog.shared.write("Windows \(version) started on macOS \(ProcessInfo.processInfo.operatingSystemVersionString); "
+            + "Accessibility \(trusted ? "allowed" : "not allowed")")
+    }
+
+    /// Shows a short confirmation in the panel.
+    func showNotice(_ text: String) {
+        message = Message(text: text, success: true)
     }
 
     func refresh() { run(.refresh) }
@@ -85,6 +94,7 @@ final class AppModel {
     func select(_ display: DisplayTarget) {
         guard !busy, preferences.displayKey != display.key else { return }
         preferences.displayKey = display.key
+        ActivityLog.shared.write("Selected display \(display.name) \(display.resolution)")
         message = nil
         undoFrames = [:]
         windows = []
@@ -140,6 +150,7 @@ final class AppModel {
 
     func restore(_ entry: SavedArrangement) {
         guard !busy else { return }
+        ActivityLog.shared.write("Restoring saved layout “\(entry.name)” (\(entry.arrangement.layout.name))")
         preferences.draft = entry.arrangement
         message = nil
         if canSnap { snap() }
@@ -152,8 +163,17 @@ final class AppModel {
 
     private func syncContext() {
         let previousDisplay = display
+        let wasTrusted = trusted
         trusted = AXIsProcessTrusted()
+        if trusted != wasTrusted {
+            ActivityLog.shared.write("Accessibility access \(trusted ? "allowed" : "removed")")
+        }
+        let previousKeys = displays.map(\.key)
         displays = DisplayTarget.connected()
+        if displays.map(\.key) != previousKeys {
+            let list = displays.map { "\($0.name) \($0.resolution)" }.joined(separator: ", ")
+            ActivityLog.shared.write("Displays: \(list.isEmpty ? "no external display" : list)")
+        }
 
         if !displayWasSelected {
             let exact = displays.filter(\.isExactMatch)
@@ -209,6 +229,7 @@ final class AppModel {
                 preferences.draft = draft
                 if available.isEmpty { message = Message(text: "Open windows on your external display, then refresh.") }
             case .snap:
+                ActivityLog.shared.write("Snap requested: \(draft.layout.name), \(matches.count) of \(draft.activeSlots.count) assigned windows open")
                 let result = await service.snap(draft, matches: matches, to: target)
                 if !result.previousFrames.isEmpty { undoFrames = result.previousFrames }
                 showResult(result, expected: draft.activeSlots.count)
@@ -259,7 +280,8 @@ final class AppModel {
         if result.failed > 0 { problems.append("\(count(result.failed)) didn’t respond, so try Snap again") }
         let missing = expected - result.outcomes.count
         if missing > 0 { problems.append("\(count(missing)) not open") }
-        message = Message(text: "\(placed) of \(expected) snapped. " + problems.joined(separator: "; ") + ".")
+        message = Message(text: "\(placed) of \(expected) snapped. " + problems.joined(separator: "; ")
+            + ". Details are in the activity log.")
     }
 }
 

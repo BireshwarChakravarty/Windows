@@ -567,8 +567,28 @@ struct MenuPanel: View {
 
     private var footer: some View {
         HStack {
-            Label("External display only", systemImage: "display")
-                .foregroundStyle(secondaryInk)
+            Menu {
+                Button("Open Activity Log") { NSWorkspace.shared.open(ActivityLog.shared.fileURL) }
+                Button("Show in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([ActivityLog.shared.fileURL])
+                }
+                Button("Copy Recent Entries") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(ActivityLog.shared.recentLines(), forType: .string)
+                    model.showNotice("Copied recent log entries.")
+                }
+                Divider()
+                Button("Clear Log", role: .destructive) { ActivityLog.shared.clear() }
+            } label: {
+                Label("Activity log", systemImage: "list.bullet.rectangle")
+                    .foregroundStyle(secondaryInk)
+                    .contentShape(.rect)
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("See what Windows did with each window, step by step")
             Spacer()
             Button("Quit Windows") { NSApplication.shared.terminate(nil) }
                 .buttonStyle(.plain)

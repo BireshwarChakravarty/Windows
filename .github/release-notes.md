@@ -1,6 +1,10 @@
 Windows tiles up to four windows across a 5120 × 1440 ultrawide display from the menu bar, and saves layouts so you can bring them back in one click.
 
-**What's new:** Halves, Thirds and Center layouts, app icons in the monitor preview, Undo for the last snap (⌘Z), Return to snap, and a new ultrawide app icon.
+**What's new in 1.2**
+- Rebuilt window snapping. Windows now waits for each app to finish moving its window, retries, and handles apps such as Chrome that animate window changes in enhanced accessibility mode. Previously busy Chrome windows could be moved back to where they started.
+- Windows with a minimum size larger than their slot stay at the slot instead of jumping back.
+- Activity log: open it from the bottom of the panel to see what happened to every window.
+- Clearer messages when a window can't shrink, doesn't respond, or isn't open.
 
 **Install:** open `Windows-macOS26.dmg`, drag Windows to Applications, then open it and allow it under System Settings → Privacy & Security → Accessibility. Requires macOS 26 or later on Apple silicon or a supported Intel Mac.
 

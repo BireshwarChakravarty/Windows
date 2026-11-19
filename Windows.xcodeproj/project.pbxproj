@@ -13,6 +13,7 @@
 		A00100000000000000000008 /* PreviewRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000000A; };
 		A00100000000000000000009 /* SnapCheck.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000000B; };
 		A0010000000000000000000A /* Placement.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000000C; };
+		A0010000000000000000000B /* ActivityLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0020000000000000000000D; };
 		A00100000000000000000007 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A00200000000000000000007; };
 
 		A00200000000000000000001 /* WindowsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowsApp.swift; sourceTree = "<group>"; };
@@ -24,6 +25,7 @@
 		A0020000000000000000000A /* PreviewRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewRenderer.swift; sourceTree = "<group>"; };
 		A0020000000000000000000B /* SnapCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapCheck.swift; sourceTree = "<group>"; };
 		A0020000000000000000000C /* Placement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Placement.swift; sourceTree = "<group>"; };
+		A0020000000000000000000D /* ActivityLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityLog.swift; sourceTree = "<group>"; };
 		A00200000000000000000007 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A00200000000000000000008 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A00200000000000000000009 /* Windows.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Windows.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -43,6 +45,7 @@
 				A00200000000000000000005,
 				A0020000000000000000000A,
 				A0020000000000000000000B,
+				A0020000000000000000000D,
 				A00300000000000000000003,
 				A00200000000000000000007,
 				A00200000000000000000008,
@@ -88,6 +91,7 @@
 				A00100000000000000000008,
 				A00100000000000000000009,
 				A0010000000000000000000A,
+				A0010000000000000000000B,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -150,10 +154,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Windows/Info.plist;
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bireshwarchakravarty.Windows;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 6.0;
@@ -166,10 +170,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 3;
 				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = Windows/Info.plist;
-				MARKETING_VERSION = 1.1;
+				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bireshwarchakravarty.Windows;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 6.0;

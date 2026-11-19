@@ -32,6 +32,10 @@ Assignments in slots that a smaller layout hides are kept, so switching back res
 
 Restoration works with open, resizable windows on the selected display in its active desktop Space. If a window is closed or its identity is ambiguous, the slot shows **Missing** until you reopen it or select a replacement. Minimum window sizes may prevent some apps from fitting a slot. The built-in display and mirrored displays are excluded.
 
+## Activity log
+
+Windows records what it does at `~/Library/Logs/Windows/Windows.log`: the displays it sees, the windows it finds, and for every snap each window’s starting frame, target, attempts, errors and final frame. Open it from **Activity log** at the bottom of the panel, where you can also show it in Finder, copy recent entries to paste into a bug report, or clear it. The log rotates at 1 MB and never leaves your Mac.
+
 ## Build from source
 
 On a Mac with Xcode 26 or later, open `Windows.xcodeproj` and run the **Windows** scheme, or build the universal app and its disk image from the command line:
@@ -47,11 +51,14 @@ Every **Build Windows for macOS** run in the **Actions** tab tests the layout lo
 | Path | Contents |
 | --- | --- |
 | `Windows/Core/Arrangement.swift` | Layouts, slot geometry and window matching, shared with the Swift package tests |
+| `Windows/Core/Placement.swift` | Rules for judging whether a window reached its slot |
 | `Windows/WindowService.swift` | Finding, moving and resizing windows through the Accessibility API |
 | `Windows/DisplayTarget.swift` | External display detection and coordinates |
+| `Windows/ActivityLog.swift` | The activity log |
 | `Windows/AppModel.swift` | App state, saved layouts and Undo |
 | `Windows/MenuPanel.swift` | The menu bar panel |
 | `Windows/PreviewRenderer.swift` | Renders the panel with example data for design checks |
+| `Windows/SnapCheck.swift`, `Scripts/ci/` | End-to-end snapping check that CI runs on a real Mac |
 | `Design/AppIcon.svg` | Source for the app icon |
 
 ## Previews

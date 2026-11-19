@@ -7,7 +7,7 @@
 - **Minimum sizes.** A window that can’t shrink to its slot now stays at the slot’s corner, kept on screen, instead of jumping back.
 - **Clearer results.** The panel says how many windows snapped and which ones couldn’t shrink, didn’t respond, or aren’t open.
 - **Activity log.** Open it from the bottom of the panel to see each window’s starting frame, target, attempts, errors and final frame. You can also show it in Finder, copy recent entries, or clear it. It’s stored at `~/Library/Logs/Windows/Windows.log`.
-- Each build runs an end-to-end snapping check on a real Mac in CI.
+- Every build is tested on a real Mac by snapping two Chrome windows, TextEdit and Finder, including with enhanced accessibility mode turned on.
 
 ## 1.1
 

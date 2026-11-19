@@ -120,7 +120,10 @@ actor WindowService {
             if attribute(application, Self.enhancedUserInterface) as? Bool == true {
                 let error = AXUIElementSetAttributeValue(application, Self.enhancedUserInterface as CFString, kCFBooleanFalse)
                 restoreEnhanced[pid] = application
-                log.write("  \(appNames[pid] ?? "pid \(pid)") is in enhanced accessibility mode; turned it off while moving (\(error.logText))")
+                let stillOn = attribute(application, Self.enhancedUserInterface) as? Bool == true
+                log.write("  \(appNames[pid] ?? "pid \(pid)") is in enhanced accessibility mode; "
+                    + (stillOn ? "it stayed on (\(error.logText)), so moves will wait for its animations"
+                               : "turned it off while moving"))
             }
         }
 

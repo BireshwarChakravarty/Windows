@@ -45,6 +45,7 @@ jobs:
           path: ${{ runner.temp }}/snap-e2e/*.*
           if-no-files-found: warn
       - name: Render the panel with example data
+        if: always()
         continue-on-error: true
         run: |
           perl -e 'alarm shift; exec @ARGV' 120 dist/Windows.app/Contents/MacOS/Windows --render-previews "$RUNNER_TEMP/renders"

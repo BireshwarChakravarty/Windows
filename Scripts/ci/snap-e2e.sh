@@ -8,16 +8,22 @@ work="${RUNNER_TEMP:-/tmp}/snap-e2e"
 mkdir -p "$work"
 # Every step gets a time limit so one stuck command cannot hang the job.
 with_timeout() { local seconds="$1"; shift; perl -e 'alarm shift; exec @ARGV' "$seconds" "$@"; }
-chrome_flags=(--user-data-dir="$work/chrome" --no-first-run --no-default-browser-check --disable-features=ChromeWhatsNewUI)
+chrome="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+chrome_flags=(--user-data-dir="$work/chrome" --no-first-run --no-default-browser-check
+    --use-mock-keychain --password-store=basic --disable-features=ChromeWhatsNewUI)
+
+with_timeout 120 swift "$(dirname "$0")/set-resolution.swift" || echo "Couldn't change the display mode"
+sleep 3
 
 echo "Opening test windows"
-with_timeout 30 open -na "Google Chrome" --args "${chrome_flags[@]}" --new-window "data:text/html,<title>Research</title><h1>Research</h1>"
-sleep 8
-with_timeout 30 open -na "Google Chrome" --args "${chrome_flags[@]}" --new-window "data:text/html,<title>Inbox</title><h1>Inbox</h1>"
+# Launch Chrome directly: going through open(1) waits on first-run work and can hang on CI.
+"$chrome" "${chrome_flags[@]}" --new-window "data:text/html,<title>Research</title><h1>Research</h1>" >"$work/chrome.log" 2>&1 &
+sleep 10
+"$chrome" "${chrome_flags[@]}" --new-window "data:text/html,<title>Inbox</title><h1>Inbox</h1>" >>"$work/chrome.log" 2>&1 &
 printf 'Snap check\n' > "$work/notes.txt"
 with_timeout 30 open -a TextEdit "$work/notes.txt"
 with_timeout 30 open -a Finder "$HOME"
-sleep 8
+sleep 12
 
 status=0
 run_check() {

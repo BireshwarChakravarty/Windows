@@ -9,13 +9,27 @@ struct RunningApp: Sendable {
 }
 
 struct SnapResult: Sendable {
-    var placed: Set<Int> = []
-    var constrained: Set<Int> = []
+    var outcomes: [Int: PlacementOutcome] = [:]
     var displayChanged = false
+    /// Frames that windows had before this snap moved them, for Undo.
+    var previousFrames: [UUID: CGRect] = [:]
+    /// Where each window ended up, for diagnostics.
+    var finalFrames: [Int: CGRect] = [:]
+
+    var placed: Int { outcomes.values.filter { $0 == .placed }.count }
+    var tooLarge: Int { outcomes.values.filter { $0 == .tooLarge }.count }
+    var failed: Int { outcomes.values.filter { $0 == .failed }.count }
 }
 
+/// Finds windows on a display and moves them with the Accessibility API.
+///
+/// Apps apply frame changes at their own pace: a busy app can take longer than a quick timeout,
+/// and apps in enhanced accessibility mode (Chrome and Electron apps once an assistive app talks to
+/// them) animate the change. So every move waits for the window to settle before judging it, retries,
+/// and turns enhanced mode off for the duration of the move.
 actor WindowService {
     private struct LiveWindow {
+        let pid: pid_t
         let element: AXUIElement
         let choice: WindowChoice
     }
@@ -26,11 +40,21 @@ actor WindowService {
         let order: Int
     }
 
+    private static let readTimeout: Float = 0.5
+    /// A second, longer chance for apps that are busy, such as Chrome building its accessibility tree
+    /// the first time a new process asks for its windows.
+    private static let slowReadTimeout: Float = 3
+    private static let writeTimeout: Float = 1.5
+    private static let enhancedUserInterface = "AXEnhancedUserInterface"
+
     private var tracked: [UUID: LiveWindow] = [:]
 
-    func scan(_ display: DisplayTarget, applications: [RunningApp]) -> [WindowChoice] {
+    // MARK: Scanning
+
+    func scan(_ display: DisplayTarget, applications: [RunningApp]) async -> [WindowChoice] {
         guard AXIsProcessTrusted(), display.isActive else {
             tracked = [:]
+            ActivityLog.shared.write("Scan skipped: \(AXIsProcessTrusted() ? "\(display.name) is not active" : "Accessibility access not granted")")
             return []
         }
 
@@ -41,12 +65,18 @@ actor WindowService {
 
         for app in applications {
             guard var visibleForApp = byProcess[app.pid] else { continue }
-            let application = AXUIElementCreateApplication(app.pid)
-            AXUIElementSetMessagingTimeout(application, 0.2)
-            guard let elements = attribute(application, kAXWindowsAttribute) as? [AXUIElement] else { continue }
+            guard let elements = await windowElements(of: app) else { continue }
+            let onScreen = visibleForApp.count
+            defer {
+                if onScreen > 0, visibleForApp.count == onScreen {
+                    ActivityLog.shared.write("  \(app.name) has \(onScreen) windows on screen but none could be matched "
+                        + "(\(elements.count) reported by the app)")
+                }
+            }
 
             for element in elements {
-                AXUIElementSetMessagingTimeout(element, 0.2)
+                AXUIElementSetMessagingTimeout(element, Self.readTimeout)
+                if frame(of: element) == nil { AXUIElementSetMessagingTimeout(element, Self.slowReadTimeout) }
                 guard let frame = frame(of: element), display.bounds.contains(frame.center),
                       let index = visibleForApp.firstIndex(where: { $0.frame.isNear(frame, tolerance: 16) }),
                       isAdjustable(element) else { continue }
@@ -58,49 +88,182 @@ actor WindowService {
                     title: attribute(element, kAXTitleAttribute) as? String ?? "",
                     accessibilityID: attribute(element, kAXIdentifierAttribute) as? String
                 )
-                let window = LiveWindow(element: element, choice: WindowChoice(reference: reference))
+                let window = LiveWindow(pid: app.pid, element: element, choice: WindowChoice(reference: reference))
                 results.append((visibleWindow.order, window))
             }
         }
 
         tracked = Dictionary(uniqueKeysWithValues: results.map { ($0.window.choice.id, $0.window) })
+        let names = results.sorted { $0.order < $1.order }.map(\.window.choice.reference.appName)
+        ActivityLog.shared.write("Scan \(display.name): \(results.count) windows (\(names.joined(separator: ", ")))")
         return results.sorted { $0.order < $1.order }.map(\.window.choice)
     }
 
-    func snap(_ arrangement: Arrangement, matches: [Int: WindowChoice], to display: DisplayTarget) -> SnapResult {
+    // MARK: Snapping
+
+    func snap(_ arrangement: Arrangement, matches: [Int: WindowChoice], to display: DisplayTarget,
+              forceEnhancedUserInterface: Bool = false) async -> SnapResult {
         var result = SnapResult()
         let frames = arrangement.layout.frames(in: display.workArea)
+        let assignments = matches.sorted { $0.key < $1.key }
+            .compactMap { slot, choice -> (slot: Int, window: LiveWindow, target: CGRect)? in
+                guard frames.indices.contains(slot), let window = tracked[choice.id] else { return nil }
+                let target = frames[slot]
+                guard target.width > 0, target.height > 0, display.workArea.contains(target) else { return nil }
+                return (slot, window, target)
+            }
 
-        for (slot, choice) in matches.sorted(by: { $0.key < $1.key }) {
-            guard display.isActive else {
-                result.displayChanged = true
+        let log = ActivityLog.shared
+        log.write("Snap \(arrangement.layout.name) on \(display.name) \(display.resolution), "
+            + "work area \(display.workArea.logText), \(assignments.count) of \(matches.count) windows found")
+        let appNames = Dictionary(assignments.map { ($0.window.pid, $0.window.choice.reference.appName) }) { first, _ in first }
+
+        // Turn enhanced accessibility mode off once per app while its windows move.
+        var restoreEnhanced: [pid_t: AXUIElement] = [:]
+        for pid in Set(assignments.map(\.window.pid)) {
+            let application = AXUIElementCreateApplication(pid)
+            AXUIElementSetMessagingTimeout(application, Self.writeTimeout)
+            if forceEnhancedUserInterface {
+                AXUIElementSetAttributeValue(application, Self.enhancedUserInterface as CFString, kCFBooleanTrue)
+            }
+            if attribute(application, Self.enhancedUserInterface) as? Bool == true {
+                let error = AXUIElementSetAttributeValue(application, Self.enhancedUserInterface as CFString, kCFBooleanFalse)
+                restoreEnhanced[pid] = application
+                let stillOn = attribute(application, Self.enhancedUserInterface) as? Bool == true
+                log.write("  \(appNames[pid] ?? "pid \(pid)") is in enhanced accessibility mode; "
+                    + (stillOn ? "it stayed on (\(error.logText)), so moves will wait for its animations"
+                               : "turned it off while moving"))
+            }
+        }
+
+        for assignment in assignments {
+            guard AXIsProcessTrusted(), display.isActive else {
+                result.displayChanged = !display.isActive
                 break
             }
-            guard AXIsProcessTrusted(), frames.indices.contains(slot),
-                  let element = tracked[choice.id]?.element,
-                  let original = frame(of: element), display.bounds.contains(original.center),
-                  isAdjustable(element) else { continue }
-
-            let destination = frames[slot]
-            guard destination.width > 0, destination.height > 0, display.workArea.contains(destination) else { continue }
-            if original.isNear(destination, tolerance: 2) {
-                result.placed.insert(slot)
+            let element = assignment.window.element
+            let reference = assignment.window.choice.reference
+            let label = "Slot \(assignment.slot + 1) \(reference.appName) “\(reference.title.truncatedForLog())”"
+            AXUIElementSetMessagingTimeout(element, Self.writeTimeout)
+            guard let original = frame(of: element), isAdjustable(element) else {
+                result.outcomes[assignment.slot] = .failed
+                log.write("  \(label): can’t be moved now (closed, minimized, full screen or not resizable)")
                 continue
             }
 
-            setFrame(destination, on: element)
-            if frame(of: element)?.isNear(destination, tolerance: 2) == true {
-                result.placed.insert(slot)
-            } else {
-                if display.isActive,
-                   let adjusted = frame(of: element), !adjusted.isNear(original, tolerance: 2) {
-                    setFrame(original, on: element)
-                }
-                result.constrained.insert(slot)
+            log.write("  \(label): from \(original.logText) to \(assignment.target.logText)")
+            let started = Date()
+            let (outcome, final) = await place(element, at: assignment.target, in: display.workArea)
+            log.write(String(format: "  %@: %@ after %.2f s, now %@", label, outcome.rawValue,
+                             Date().timeIntervalSince(started), final?.logText ?? "unknown"))
+            result.outcomes[assignment.slot] = outcome
+            result.finalFrames[assignment.slot] = final
+            if outcome != .failed || !(final?.isNear(original, tolerance: 2) ?? true) {
+                result.previousFrames[assignment.window.choice.id] = original
             }
         }
+
+        for application in restoreEnhanced.values {
+            AXUIElementSetAttributeValue(application, Self.enhancedUserInterface as CFString, kCFBooleanTrue)
+        }
+        log.write("Snap finished: \(result.placed) placed, \(result.tooLarge) too large, \(result.failed) not responding"
+            + (result.displayChanged ? ", display changed" : ""))
         return result
     }
+
+    /// Moves windows back to frames recorded by `snap`. Returns how many reached their old frame.
+    func restore(_ previousFrames: [UUID: CGRect], on display: DisplayTarget) async -> Int {
+        ActivityLog.shared.write("Undo: moving \(previousFrames.count) windows back")
+        var restored = 0
+        for (id, target) in previousFrames {
+            guard AXIsProcessTrusted(), display.isActive, display.bounds.intersects(target),
+                  let window = tracked[id], isAdjustable(window.element) else { continue }
+            AXUIElementSetMessagingTimeout(window.element, Self.writeTimeout)
+            let application = AXUIElementCreateApplication(window.pid)
+            let enhanced = attribute(application, Self.enhancedUserInterface) as? Bool == true
+            if enhanced { AXUIElementSetAttributeValue(application, Self.enhancedUserInterface as CFString, kCFBooleanFalse) }
+            let outcome = await place(window.element, at: target, in: display.bounds).outcome
+            ActivityLog.shared.write("  \(window.choice.reference.appName) back to \(target.logText): \(outcome.rawValue)")
+            if outcome != .failed { restored += 1 }
+            if enhanced { AXUIElementSetAttributeValue(application, Self.enhancedUserInterface as CFString, kCFBooleanTrue) }
+        }
+        return restored
+    }
+
+    /// The app's windows as Accessibility elements. Apps that are busy, or that are still building their
+    /// accessibility tree (Chrome does this the first time a process asks), can time out or report no
+    /// windows at first, so this asks again with a longer timeout and a short pause.
+    private func windowElements(of app: RunningApp) async -> [AXUIElement]? {
+        let application = AXUIElementCreateApplication(app.pid)
+        var lastError = AXError.success
+        for attempt in 1...3 {
+            AXUIElementSetMessagingTimeout(application, attempt == 1 ? Self.readTimeout : Self.slowReadTimeout)
+            let (value, error) = copyAttribute(application, kAXWindowsAttribute)
+            lastError = error
+            if let elements = value as? [AXUIElement], !elements.isEmpty {
+                if attempt > 1 { ActivityLog.shared.write("  \(app.name) listed its windows on attempt \(attempt)") }
+                return elements
+            }
+            if error != .success && error != .cannotComplete && error != .noValue { break }
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        ActivityLog.shared.write("  Couldn’t read the windows of \(app.name): "
+            + (lastError == .success ? "it reported none" : lastError.logText))
+        return nil
+    }
+
+    /// Current frame of a scanned window, for diagnostics.
+    func currentFrame(of id: UUID) -> CGRect? {
+        tracked[id].flatMap { frame(of: $0.element) }
+    }
+
+    /// Requests `target`, waits for the app to apply it, and retries a few times.
+    private func place(_ element: AXUIElement, at target: CGRect, in area: CGRect) async -> (outcome: PlacementOutcome, frame: CGRect?) {
+        var outcome = PlacementOutcome.failed
+        var latest: CGRect?
+        for attempt in 1...3 {
+            let errors = setFrame(target, on: element)
+            latest = await settledFrame(of: element, toward: target)
+            guard let latest else {
+                ActivityLog.shared.write("    attempt \(attempt): couldn’t read the frame back\(errors)")
+                continue
+            }
+            outcome = Placement.evaluate(latest, target: target)
+            if outcome != .placed || attempt > 1 || !errors.isEmpty {
+                ActivityLog.shared.write("    attempt \(attempt): \(outcome.rawValue) at \(latest.logText)\(errors)")
+            }
+            if outcome == .placed { break }
+            if outcome == .tooLarge {
+                // The app enforces a minimum size: keep it at the slot, inside the work area.
+                let clamped = Placement.clamped(latest.size, at: target, in: area)
+                setPosition(clamped.origin, on: element)
+                return (outcome, await settledFrame(of: element, toward: clamped))
+            }
+        }
+        return (outcome, latest)
+    }
+
+    /// Polls a window's frame until it reaches the target or stops changing.
+    private func settledFrame(of element: AXUIElement, toward target: CGRect) async -> CGRect? {
+        var previous: CGRect?
+        var stableReads = 0
+        for _ in 0..<25 {
+            try? await Task.sleep(for: .milliseconds(40))
+            guard let current = frame(of: element) else { continue }
+            if Placement.evaluate(current, target: target) == .placed { return current }
+            if let previous, current.isNear(previous, tolerance: 0.5) {
+                stableReads += 1
+                // Unchanged for about 0.2 seconds: the app has finished with this request.
+                if stableReads >= 5 { return current }
+            } else {
+                stableReads = 0
+            }
+            previous = current
+        }
+        return frame(of: element)
+    }
+
+    // MARK: Accessibility helpers
 
     private func visibleWindows(on display: DisplayTarget) -> [VisibleWindow] {
         let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
@@ -128,9 +291,14 @@ actor WindowService {
     }
 
     private func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
+        let (value, error) = copyAttribute(element, name)
+        return error == .success ? value : nil
+    }
+
+    private func copyAttribute(_ element: AXUIElement, _ name: String) -> (CFTypeRef?, AXError) {
         var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
-        return value
+        let error = AXUIElementCopyAttributeValue(element, name as CFString, &value)
+        return (value, error)
     }
 
     private func frame(of element: AXUIElement) -> CGRect? {
@@ -145,15 +313,31 @@ actor WindowService {
         return CGRect(origin: point, size: dimensions)
     }
 
-    private func setFrame(_ frame: CGRect, on element: AXUIElement) {
-        var point = frame.origin
-        var dimensions = frame.size
-        guard let position = AXValueCreate(.cgPoint, &point), let size = AXValueCreate(.cgSize, &dimensions) else { return }
+    /// Requests a frame. Returns any errors as text for the log, or an empty string.
+    @discardableResult
+    private func setFrame(_ frame: CGRect, on element: AXUIElement) -> String {
+        // Size first so the move is not clamped by the old size, then position, then size again
+        // because some apps clamp the first resize against the window's old position.
+        let errors = [("size", setSize(frame.size, on: element)),
+                      ("position", setPosition(frame.origin, on: element)),
+                      ("size", setSize(frame.size, on: element))]
+            .filter { $0.1 != .success }
+            .map { "\($0.0): \($0.1.logText)" }
+        return errors.isEmpty ? "" : " (" + errors.joined(separator: ", ") + ")"
+    }
 
-        AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, position)
-        AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, size)
-        // macOS can clamp the first move using the window's pre-resize frame.
-        AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, position)
+    @discardableResult
+    private func setPosition(_ origin: CGPoint, on element: AXUIElement) -> AXError {
+        var point = origin
+        guard let value = AXValueCreate(.cgPoint, &point) else { return .illegalArgument }
+        return AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, value)
+    }
+
+    @discardableResult
+    private func setSize(_ size: CGSize, on element: AXUIElement) -> AXError {
+        var dimensions = size
+        guard let value = AXValueCreate(.cgSize, &dimensions) else { return .illegalArgument }
+        return AXUIElementSetAttributeValue(element, kAXSizeAttribute as CFString, value)
     }
 }
 

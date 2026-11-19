@@ -20,8 +20,24 @@ xcodebuild \
 
 app="$repo_dir/dist/Windows.app"
 archive="$repo_dir/dist/Windows-macOS26.zip"
+disk_image="$repo_dir/dist/Windows-macOS26.dmg"
 codesign --verify --strict "$app"
 lipo "$app/Contents/MacOS/Windows" -verify_arch arm64 x86_64
 ditto -c -k --keepParent "$app" "$archive"
 
-printf '\nBuilt %s\nPackaged %s\n' "$app" "$archive"
+# A drag-to-install disk image with the app next to a link to Applications.
+staging="$(mktemp -d)"
+trap 'rm -rf "$staging"' EXIT
+ditto "$app" "$staging/Windows.app"
+ln -s /Applications "$staging/Applications"
+rm -f "$disk_image"
+for attempt in 1 2 3; do
+    if hdiutil create -volname Windows -srcfolder "$staging" -fs HFS+ -format UDZO -ov "$disk_image"; then
+        break
+    fi
+    printf 'hdiutil create failed (attempt %s), retrying\n' "$attempt" >&2
+    sleep 5
+done
+hdiutil verify "$disk_image"
+
+printf '\nBuilt %s\nPackaged %s\nPackaged %s\n' "$app" "$archive" "$disk_image"

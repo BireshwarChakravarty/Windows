@@ -20,7 +20,8 @@ import CoreGraphics
     let area = CGRect(x: 104, y: -982, width: 3437, height: 944)
     for layout in Layout.allCases {
         let frames = layout.frames(in: area)
-        #expect(frames.count == 4)
+        #expect(frames.count == layout.slotCount)
+        #expect((2...4).contains(frames.count))
         #expect(frames.allSatisfy { area.contains($0) && !$0.isEmpty })
         for i in frames.indices {
             for j in frames.indices where j > i {
@@ -31,6 +32,39 @@ import CoreGraphics
     let focus = Layout.focus.frames(in: area)
     #expect(focus[1].width > focus[0].width)
     #expect(focus[1].height > focus[0].height)
+}
+
+@Test func ultrawideSplitsKeepEvenGuttersAndEdges() {
+    let area = CGRect(x: 0, y: 25, width: 5120, height: 1415)
+    for layout in [Layout.halves, .thirds, .center] {
+        let frames = layout.frames(in: area)
+        #expect(frames.first?.minX == 8)
+        #expect(frames.last?.maxX == 5112)
+        #expect(frames.allSatisfy { $0.minY == 33 && $0.maxY == 1432 })
+        for (left, right) in zip(frames, frames.dropFirst()) {
+            #expect(right.minX - left.maxX == 8)
+        }
+    }
+    let center = Layout.center.frames(in: area)
+    #expect(center[1].width > center[0].width * 1.9)
+    #expect(center[0].width == center[2].width)
+}
+
+@Test func switchingToFewerSlotsIgnoresButKeepsHiddenAssignments() {
+    let editor = makeWindow(app: "Xcode", title: "Project")
+    let browser = makeWindow(app: "Safari", title: "Docs")
+    var arrangement = Arrangement(layout: .columns, slots: [0: editor.reference, 3: browser.reference])
+    arrangement.layout = .halves
+    #expect(arrangement.activeSlots.keys.sorted() == [0])
+    #expect(arrangement.matches(in: [editor, browser]) == [0: editor])
+    arrangement.layout = .columns
+    #expect(arrangement.matches(in: [editor, browser]) == [0: editor, 3: browser])
+}
+
+@Test func savedLayoutsFromEarlierVersionsStillDecode() throws {
+    let json = #"{"layout":"focus","slots":{}}"#
+    let arrangement = try JSONDecoder().decode(Arrangement.self, from: Data(json.utf8))
+    #expect(arrangement.layout == .focus)
 }
 
 @Test func matchingKeepsTrackedWindowsWhenTitlesChange() {
@@ -83,4 +117,32 @@ import CoreGraphics
 private func makeWindow(app: String, title: String, sessionID: UUID = UUID(), accessibilityID: String? = nil) -> WindowChoice {
     WindowChoice(reference: WindowReference(sessionID: sessionID, appID: app, appName: app, title: title,
                                            accessibilityID: accessibilityID))
+}
+
+@Test func placementAcceptsExactAndCellSizedWindows() {
+    let slot = CGRect(x: 8, y: 33, width: 1268, height: 1399)
+    #expect(Placement.evaluate(slot, target: slot) == .placed)
+    // Terminal-style windows stop short of the slot by part of a character cell.
+    #expect(Placement.evaluate(CGRect(x: 8, y: 33, width: 1261, height: 1386), target: slot) == .placed)
+    #expect(Placement.evaluate(CGRect(x: 9.5, y: 34, width: 1268, height: 1399), target: slot) == .placed)
+}
+
+@Test func placementReportsMinimumSizesAndWindowsThatDidNotMove() {
+    let slot = CGRect(x: 8, y: 33, width: 470, height: 1040)
+    #expect(Placement.evaluate(CGRect(x: 8, y: 33, width: 500, height: 1040), target: slot) == .tooLarge)
+    // A window still at its old frame, or caught mid-animation, is not placed.
+    #expect(Placement.evaluate(CGRect(x: 135, y: 195, width: 4700, height: 950), target: slot) == .failed)
+    #expect(Placement.evaluate(CGRect(x: 60, y: 90, width: 900, height: 1040), target: slot) == .failed)
+    // Moved but not resized yet.
+    #expect(Placement.evaluate(CGRect(x: 8, y: 33, width: 300, height: 700), target: slot) == .failed)
+}
+
+@Test func clampingKeepsLargeWindowsOnScreen() {
+    let area = CGRect(x: 0, y: 25, width: 1920, height: 1055)
+    let lastColumn = CGRect(x: 1444, y: 33, width: 468, height: 1039)
+    let frame = Placement.clamped(CGSize(width: 500, height: 1039), at: lastColumn, in: area)
+    #expect(frame.maxX == 1920)
+    #expect(frame.minY == 33)
+    let firstColumn = CGRect(x: 8, y: 33, width: 468, height: 1039)
+    #expect(Placement.clamped(CGSize(width: 500, height: 600), at: firstColumn, in: area).origin == firstColumn.origin)
 }

@@ -1,11 +1,10 @@
 import AppKit
 @preconcurrency import ApplicationServices
-import Foundation
 import Observation
 
 @MainActor
 @Observable
-final class SnapperModel {
+final class AppModel {
     struct Message: Equatable {
         let text: String
         var success = false
@@ -17,12 +16,14 @@ final class SnapperModel {
         var saved: [SavedArrangement] = []
     }
 
-    private enum Operation { case refresh, fill, snap }
+    private enum Operation { case refresh, fill, snap, undo }
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let service = WindowService()
     @ObservationIgnored private var refreshQueued = false
     @ObservationIgnored private var requestedAccess = false
+    @ObservationIgnored private var isPreview = false
+    private var undoFrames: [UUID: CGRect] = [:]
     private var preferences: Preferences {
         didSet {
             if let data = try? JSONEncoder().encode(preferences) {
@@ -43,11 +44,13 @@ final class SnapperModel {
     var arrangement: Arrangement { preferences.draft }
     var saved: [SavedArrangement] { preferences.saved }
     var matches: [Int: WindowChoice] { arrangement.matches(in: windows) }
-    var canSnap: Bool { trusted && display != nil && !busy && !arrangement.slots.isEmpty }
+    var assignedCount: Int { arrangement.activeSlots.count }
+    var canSnap: Bool { trusted && display != nil && !busy && assignedCount > 0 }
     var canFill: Bool {
-        trusted && display != nil && !busy && arrangement.slots.count < 4
+        trusted && display != nil && !busy && assignedCount < arrangement.layout.slotCount
             && windows.count > matches.count
     }
+    var canUndo: Bool { trusted && display != nil && !busy && !undoFrames.isEmpty }
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -57,14 +60,24 @@ final class SnapperModel {
         } else {
             preferences = Preferences()
         }
+        let info = Bundle.main.infoDictionary
+        let version = "\(info?["CFBundleShortVersionString"] as? String ?? "?") (\(info?["CFBundleVersion"] as? String ?? "?"))"
+        ActivityLog.shared.write("Windows \(version) started on macOS \(ProcessInfo.processInfo.operatingSystemVersionString); "
+            + "Accessibility \(trusted ? "allowed" : "not allowed")")
+    }
+
+    /// Shows a short confirmation in the panel.
+    func showNotice(_ text: String) {
+        message = Message(text: text, success: true)
     }
 
     func refresh() { run(.refresh) }
     func fill() { run(.fill) }
     func snap() { run(.snap) }
+    func undo() { run(.undo) }
 
     func checkAccess() {
-        if AXIsProcessTrusted() != trusted { refresh() }
+        if !isPreview, AXIsProcessTrusted() != trusted { refresh() }
     }
 
     func openAccessibility() {
@@ -81,7 +94,9 @@ final class SnapperModel {
     func select(_ display: DisplayTarget) {
         guard !busy, preferences.displayKey != display.key else { return }
         preferences.displayKey = display.key
+        ActivityLog.shared.write("Selected display \(display.name) \(display.resolution)")
         message = nil
+        undoFrames = [:]
         windows = []
         refresh()
     }
@@ -111,15 +126,16 @@ final class SnapperModel {
 
     func save(as name: String) {
         let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !busy, !name.isEmpty, !arrangement.slots.isEmpty else { return }
+        guard !busy, !name.isEmpty, assignedCount > 0 else { return }
+        let snapshot = Arrangement(layout: arrangement.layout, slots: arrangement.activeSlots)
         if let index = savedIndex(named: name) {
             var entry = saved[index]
             entry.name = name
-            entry.arrangement = arrangement
+            entry.arrangement = snapshot
             entry.savedAt = .now
             preferences.saved[index] = entry
         } else {
-            preferences.saved.append(SavedArrangement(name: name, arrangement: arrangement))
+            preferences.saved.append(SavedArrangement(name: name, arrangement: snapshot))
         }
         message = Message(text: "Saved \(name).", success: true)
     }
@@ -134,6 +150,7 @@ final class SnapperModel {
 
     func restore(_ entry: SavedArrangement) {
         guard !busy else { return }
+        ActivityLog.shared.write("Restoring saved layout “\(entry.name)” (\(entry.arrangement.layout.name))")
         preferences.draft = entry.arrangement
         message = nil
         if canSnap { snap() }
@@ -146,8 +163,17 @@ final class SnapperModel {
 
     private func syncContext() {
         let previousDisplay = display
+        let wasTrusted = trusted
         trusted = AXIsProcessTrusted()
+        if trusted != wasTrusted {
+            ActivityLog.shared.write("Accessibility access \(trusted ? "allowed" : "removed")")
+        }
+        let previousKeys = displays.map(\.key)
         displays = DisplayTarget.connected()
+        if displays.map(\.key) != previousKeys {
+            let list = displays.map { "\($0.name) \($0.resolution)" }.joined(separator: ", ")
+            ActivityLog.shared.write("Displays: \(list.isEmpty ? "no external display" : list)")
+        }
 
         if !displayWasSelected {
             let exact = displays.filter(\.isExactMatch)
@@ -162,6 +188,7 @@ final class SnapperModel {
     }
 
     private func run(_ operation: Operation) {
+        guard !isPreview else { return }
         syncContext()
         if busy {
             if operation == .refresh { refreshQueued = true }
@@ -170,13 +197,7 @@ final class SnapperModel {
         guard trusted, let target = display else { return }
         busy = true
         if operation != .refresh { message = nil }
-        let applications = NSWorkspace.shared.runningApplications.compactMap { app -> RunningApp? in
-            let pid = app.processIdentifier
-            guard pid > 0, pid != ProcessInfo.processInfo.processIdentifier,
-                  app.activationPolicy != .prohibited, !app.isHidden else { return nil }
-            let id = app.bundleIdentifier ?? app.executableURL?.path ?? "pid:\(pid)"
-            return RunningApp(pid: pid, id: id, name: app.localizedName ?? id)
-        }
+        let applications = RunningApp.visible()
 
         Task {
             defer {
@@ -208,21 +229,72 @@ final class SnapperModel {
                 preferences.draft = draft
                 if available.isEmpty { message = Message(text: "Open windows on your external display, then refresh.") }
             case .snap:
+                ActivityLog.shared.write("Snap requested: \(draft.layout.name), \(matches.count) of \(draft.activeSlots.count) assigned windows open")
                 let result = await service.snap(draft, matches: matches, to: target)
-                showResult(result, expected: draft.slots.count)
+                if !result.previousFrames.isEmpty { undoFrames = result.previousFrames }
+                showResult(result, expected: draft.activeSlots.count)
+            case .undo:
+                let frames = undoFrames
+                undoFrames = [:]
+                let restored = await service.restore(frames, on: target)
+                message = restored == frames.count
+                    ? Message(text: restored == 1 ? "Moved 1 window back." : "Moved \(restored) windows back.", success: true)
+                    : Message(text: "Moved \(restored) of \(frames.count) windows back. Others were closed or moved.")
             }
         }
     }
 
+    /// A model with fixed example state for rendering previews. It never scans or moves windows.
+    static func preview(layout: Layout, windows references: [WindowReference], saved: [SavedArrangement] = [],
+                        message: Message? = nil, canUndo: Bool = false) -> AppModel {
+        let suite = "Windows.preview"
+        let defaults = UserDefaults(suiteName: suite) ?? .standard
+        defaults.removePersistentDomain(forName: suite)
+        let model = AppModel(defaults: defaults)
+        model.isPreview = true
+        model.trusted = true
+        model.displays = [DisplayTarget(id: 0, key: "preview", name: "Ultrawide display", pixelsWide: 5120,
+                                        pixelsHigh: 1440, bounds: .zero, workArea: .zero)]
+        model.windows = references.map(WindowChoice.init(reference:))
+        var draft = Arrangement(layout: layout)
+        for (slot, reference) in references.prefix(layout.slotCount).enumerated() { draft.slots[slot] = reference }
+        model.preferences = Preferences(displayKey: "preview", draft: draft, saved: saved)
+        model.message = message
+        if canUndo { model.undoFrames = [UUID(): .zero] }
+        return model
+    }
+
     private func showResult(_ result: SnapResult, expected: Int) {
+        let placed = result.placed
         if result.displayChanged {
-            message = Message(text: "The display changed. \(result.placed.count) of \(expected) windows snapped.")
-        } else if result.placed.count == expected {
+            message = Message(text: "The display changed. \(placed) of \(expected) windows snapped.")
+            return
+        }
+        if placed == expected {
             message = Message(text: expected == 1 ? "Snapped 1 window." : "Snapped \(expected) windows.", success: true)
-        } else if !result.constrained.isEmpty {
-            message = Message(text: "\(result.placed.count) of \(expected) snapped. Some windows couldn’t fit their slots.")
-        } else {
-            message = Message(text: "\(result.placed.count) of \(expected) snapped. Reopen missing windows or choose replacements.")
+            return
+        }
+        func count(_ number: Int) -> String { number == 1 ? "1 window" : "\(number) windows" }
+        var problems: [String] = []
+        if result.tooLarge > 0 { problems.append("\(count(result.tooLarge)) can’t shrink to fit") }
+        if result.failed > 0 { problems.append("\(count(result.failed)) didn’t respond, so try Snap again") }
+        let missing = expected - result.outcomes.count
+        if missing > 0 { problems.append("\(count(missing)) not open") }
+        message = Message(text: "\(placed) of \(expected) snapped. " + problems.joined(separator: "; ")
+            + ". Details are in the activity log.")
+    }
+}
+
+extension RunningApp {
+    /// Apps that can own windows on screen, excluding Windows itself.
+    @MainActor
+    static func visible() -> [RunningApp] {
+        NSWorkspace.shared.runningApplications.compactMap { app -> RunningApp? in
+            let pid = app.processIdentifier
+            guard pid > 0, pid != ProcessInfo.processInfo.processIdentifier,
+                  app.activationPolicy != .prohibited, !app.isHidden else { return nil }
+            let id = app.bundleIdentifier ?? app.executableURL?.path ?? "pid:\(pid)"
+            return RunningApp(pid: pid, id: id, name: app.localizedName ?? id)
         }
     }
 }

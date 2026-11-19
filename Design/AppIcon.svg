@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#1d3d4f"/>
+      <stop offset="0.55" stop-color="#132536"/>
+      <stop offset="1" stop-color="#0b1421"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.47" r="0.5">
+      <stop offset="0" stop-color="#7fedcc" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#7fedcc" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.32"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.12"/>
+    </linearGradient>
+    <linearGradient id="bezel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3f5a6e"/>
+      <stop offset="1" stop-color="#22374a"/>
+    </linearGradient>
+    <linearGradient id="z1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9af5da"/><stop offset="1" stop-color="#3fbf9c"/></linearGradient>
+    <linearGradient id="z2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#a6d2ff"/><stop offset="1" stop-color="#4f8fe0"/></linearGradient>
+    <linearGradient id="z3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d4c6ff"/><stop offset="1" stop-color="#8b72e6"/></linearGradient>
+    <linearGradient id="z4" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd7a8"/><stop offset="1" stop-color="#e59a4f"/></linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.38"/>
+      <stop offset="0.45" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="drop" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+    <filter id="soft" x="-20%" y="-40%" width="140%" height="200%">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+  <g filter="url(#drop)">
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#glow)"/>
+    <rect x="102" y="102" width="820" height="820" rx="183" fill="none" stroke="url(#rim)" stroke-width="4"/>
+  </g>
+  <!-- stand -->
+  <path d="M480 604 h64 l10 78 h-84 z" fill="#2b4357"/>
+  <rect x="402" y="672" width="220" height="26" rx="13" fill="#3b566b"/>
+  <rect x="402" y="672" width="220" height="8" rx="4" fill="#ffffff" fill-opacity="0.18"/>
+  <!-- ultrawide monitor -->
+  <g filter="url(#soft)">
+    <rect x="186" y="364" width="652" height="248" rx="38" fill="url(#bezel)"/>
+  </g>
+  <rect x="188" y="366" width="648" height="244" rx="36" fill="none" stroke="#ffffff" stroke-opacity="0.22" stroke-width="3"/>
+  <rect x="210" y="388" width="604" height="200" rx="18" fill="#08101a"/>
+  <!-- four columns -->
+  <g>
+    <rect x="224" y="402" width="135" height="172" rx="12" fill="url(#z1)"/>
+    <rect x="371" y="402" width="135" height="172" rx="12" fill="url(#z2)"/>
+    <rect x="518" y="402" width="135" height="172" rx="12" fill="url(#z3)"/>
+    <rect x="665" y="402" width="135" height="172" rx="12" fill="url(#z4)"/>
+    <rect x="224" y="402" width="576" height="172" rx="12" fill="url(#shine)"/>
+  </g>
+</svg>

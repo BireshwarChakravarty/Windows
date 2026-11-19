@@ -10,7 +10,9 @@ rm -rf "$work"
 mkdir -p "$work"
 with_timeout() { local seconds="$1"; shift; perl -e 'alarm shift; exec @ARGV' "$seconds" "$@"; }
 
-"$here/../signing/make-certificate.sh" "$work/certificate" "Windows CI Test Signing"
+echo "Creating a throwaway test certificate"
+with_timeout 60 "$here/../signing/make-certificate.sh" "$work/certificate" "Windows CI Test Signing"
+echo "Importing it"
 eval "$("$here/../signing/import-certificate.sh" "$work/certificate/signing.p12" "$(cat "$work/certificate/password.txt")")"
 
 build() {   # build <name> <build number> <identity>
@@ -19,9 +21,9 @@ build() {   # build <name> <build number> <identity>
     ditto "$app" "$copy"
     /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $2" "$copy/Contents/Info.plist"
     if [[ "$3" == "-" ]]; then
-        codesign --force --options runtime --sign - "$copy"
+        with_timeout 60 codesign --force --options runtime --sign - "$copy"
     else
-        codesign --force --options runtime --timestamp=none --keychain "$SIGNING_KEYCHAIN" --sign "$3" "$copy"
+        with_timeout 60 codesign --force --options runtime --timestamp=none --keychain "$SIGNING_KEYCHAIN" --sign "$3" "$copy"
     fi
     codesign --verify --strict "$copy"
     printf '%s: %s\n' "$1" "$(codesign --display --requirements - "$copy" 2>&1 | grep designated)"
@@ -34,13 +36,14 @@ trust() {   # trust <name> -> prints TRUSTED or NOT TRUSTED
     cat "$output" 2>/dev/null || echo "NO RESULT"
 }
 
+echo "Signing three builds with identity $SIGNING_IDENTITY"
 build first 100 "$SIGNING_IDENTITY"
 build update 101 "$SIGNING_IDENTITY"
 build adhoc 102 -
 
 # Allow only the first build, the way System Settings records it, then try the others.
-sudo python3 "$here/grant-accessibility.py" --remove "$work/first/Windows.app"
-sudo python3 "$here/grant-accessibility.py" --requirement-of "$work/first/Windows.app"
+with_timeout 60 sudo python3 "$here/grant-accessibility.py" --remove "$work/first/Windows.app"
+with_timeout 60 sudo python3 "$here/grant-accessibility.py" --requirement-of "$work/first/Windows.app"
 sudo killall tccd 2>/dev/null || true
 sleep 2
 

@@ -7,17 +7,19 @@ p12="$1"
 password="$2"
 keychain="${RUNNER_TEMP:-/tmp}/windows-signing-$$.keychain-db"
 keychain_password="$(uuidgen)"
+# A keychain prompt would wait forever on a CI Mac, so every command gets a time limit.
+t() { perl -e 'alarm shift; exec @ARGV' 30 "$@"; }
 
 {
-    security create-keychain -p "$keychain_password" "$keychain"
-    security set-keychain-settings -lut 21600 "$keychain"
-    security unlock-keychain -p "$keychain_password" "$keychain"
-    security import "$p12" -k "$keychain" -P "$password" -T /usr/bin/codesign
-    security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain"
+    t security create-keychain -p "$keychain_password" "$keychain"
+    t security set-keychain-settings -lut 21600 "$keychain"
+    t security unlock-keychain -p "$keychain_password" "$keychain"
+    t security import "$p12" -k "$keychain" -P "$password" -T /usr/bin/codesign
+    t security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain"
     # Add to the search list so codesign can use the private key.
     existing=$(security list-keychains -d user | sed -e 's/^ *"//' -e 's/" *$//')
     # shellcheck disable=SC2086
-    security list-keychains -d user -s "$keychain" $existing
+    t security list-keychains -d user -s "$keychain" $existing
     security find-identity -p codesigning "$keychain"
 } >&2
 

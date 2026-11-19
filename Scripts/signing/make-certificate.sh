@@ -10,7 +10,7 @@ openssl_bin=/usr/bin/openssl   # macOS LibreSSL writes a .p12 that the Keychain 
 mkdir -p "$out"
 chmod 700 "$out"
 
-password="$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32)"
+password="$("$openssl_bin" rand -hex 24)"
 cat > "$out/cert.cnf" <<CONFIG
 [req]
 distinguished_name = dn

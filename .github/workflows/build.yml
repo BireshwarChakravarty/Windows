@@ -45,6 +45,7 @@ jobs:
       - name: Build and package the universal app
         run: ./Scripts/build-app.sh
       - name: Check that Accessibility access survives an update
+        timeout-minutes: 6
         run: Scripts/ci/permission-persists.sh "$PWD/dist/Windows.app"
       - name: Grant Accessibility on the CI Mac
         continue-on-error: true
